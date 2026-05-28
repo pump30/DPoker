@@ -9,14 +9,14 @@ export function SquidPanel({ squid, squidSettlement }: Props) {
   const distributed = squid.holders.filter((h) => h.squids > 0).length;
 
   return (
-    <div style={{ padding: '6px 16px', background: '#0f3460', display: 'flex', alignItems: 'center', gap: 12, fontSize: 13 }}>
-      <span>Squid Mode:</span>
-      <span>
+    <div className="squid-panel">
+      <span className="squid-panel__label">Squid Mode</span>
+      <span className="squid-panel__icons">
         {'🦑'.repeat(distributed)}{'⬜'.repeat(squid.totalSquids - distributed)}
       </span>
-      <span style={{ color: '#aaa' }}>({distributed}/{squid.totalSquids})</span>
+      <span className="squid-panel__count">({distributed}/{squid.totalSquids})</span>
       {squidSettlement && (
-        <span style={{ color: '#ff5722', fontWeight: 'bold', marginLeft: 'auto' }}>
+        <span className="squid-panel__settlement">
           {squidSettlement.loserId} lost! (-{squid.pointsPerSquid * squid.totalSquids} pts)
         </span>
       )}

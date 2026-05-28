@@ -3,6 +3,7 @@ import crypto from 'node:crypto';
 import { z } from 'zod';
 import { requireAuth } from './middleware.js';
 import { TableRepo } from '../store/table.repo.js';
+import type { TableRegistry } from '../runtime/table-registry.js';
 import type { DB } from '../store/db.js';
 import type { AuthConfig } from '../runtime/auth.js';
 import type { TableConfig } from '../../shared/table-types.js';
@@ -40,7 +41,7 @@ function generateShortCode(): string {
   return code;
 }
 
-export function tableRoutes(db: DB, authConfig: AuthConfig): Router {
+export function tableRoutes(db: DB, authConfig: AuthConfig, registry?: TableRegistry): Router {
   const router = Router();
   const repo = new TableRepo(db);
   const auth = requireAuth(authConfig);
@@ -51,10 +52,15 @@ export function tableRoutes(db: DB, authConfig: AuthConfig): Router {
       return res.status(400).json({ error: 'invalid_request' });
     }
 
-    const id = crypto.randomUUID();
-    const shortCode = generateShortCode();
     const config: TableConfig = parsed.data.config;
 
+    if (registry) {
+      const state = registry.createTable(req.userId!, config);
+      return res.status(201).json({ id: state.id, shortCode: state.shortCode });
+    }
+
+    const id = crypto.randomUUID();
+    const shortCode = generateShortCode();
     repo.create(id, shortCode, req.userId!, config, Date.now());
     res.status(201).json({ id, shortCode });
   });

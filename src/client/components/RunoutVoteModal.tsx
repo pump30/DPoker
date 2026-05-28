@@ -11,15 +11,15 @@ export function RunoutVoteModal({ tableId, voteRequest: _voteRequest }: Props) {
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
-      <div style={{ background: '#1a1a2e', border: '2px solid #ffd700', borderRadius: 12, padding: 24, textAlign: 'center', maxWidth: 300 }}>
-        <h3 style={{ margin: '0 0 16px', color: '#ffd700' }}>Run It Twice?</h3>
-        <p style={{ margin: '0 0 16px', color: '#ccc', fontSize: 14 }}>All players are all-in. How many boards?</p>
-        <div style={{ display: 'flex', gap: 16, justifyContent: 'center' }}>
-          <button onClick={() => vote(1)} style={{ padding: '12px 24px', background: '#f44336', color: 'white', border: 'none', borderRadius: 8, fontSize: 16, cursor: 'pointer' }}>
+    <div className="modal-overlay">
+      <div className="runout-modal">
+        <h3 className="runout-modal__title">Run It Twice?</h3>
+        <p className="runout-modal__text">All players are all-in. How many boards?</p>
+        <div className="runout-modal__buttons">
+          <button className="btn btn--lg btn--fold" onClick={() => vote(1)}>
             1 Board
           </button>
-          <button onClick={() => vote(2)} style={{ padding: '12px 24px', background: '#4caf50', color: 'white', border: 'none', borderRadius: 8, fontSize: 16, cursor: 'pointer' }}>
+          <button className="btn btn--lg btn--check" onClick={() => vote(2)}>
             2 Boards
           </button>
         </div>

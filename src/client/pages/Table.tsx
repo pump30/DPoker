@@ -15,7 +15,13 @@ export function Table({ tableId, onBack }: { tableId: string; onBack: () => void
     return () => disconnect();
   }, [tableId]);
 
-  if (!tableState) return <div style={{ padding: 24, fontFamily: 'system-ui' }}>Connecting...</div>;
+  if (!tableState) {
+    return (
+      <div className="flex-center" style={{ height: '100dvh' }}>
+        <span className="text-secondary">Connecting...</span>
+      </div>
+    );
+  }
 
   const myUserId = userId || '';
   const mySeat = tableState.seats.find((s) => s?.userId === myUserId);
@@ -23,27 +29,31 @@ export function Table({ tableId, onBack }: { tableId: string; onBack: () => void
   const isMyTurn = tableState.hand && mySeat && tableState.hand.actorSeat === mySeat.seat;
 
   return (
-    <div style={{ height: '100dvh', display: 'flex', flexDirection: 'column', fontFamily: 'system-ui', background: '#1a1a2e', color: 'white', overflow: 'hidden' }}>
+    <div className="table-page">
       {/* Header */}
-      <div style={{ padding: '8px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#16213e' }}>
-        <button onClick={onBack} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer' }}>← Back</button>
-        <span style={{ fontSize: 14 }}>{tableState.config.name} | Code: {tableState.shortCode}</span>
-        <span style={{ fontSize: 12, color: '#aaa' }}>{tableState.status}</span>
+      <div className="table-header">
+        <button className="btn btn--sm btn--ghost" onClick={onBack}>
+          ← Back
+        </button>
+        <span className="table-header__title">{tableState.config.name} | Code: {tableState.shortCode}</span>
+        <span className="table-header__status">{tableState.status}</span>
       </div>
 
       {/* Squid panel if enabled */}
       {tableState.squid && <SquidPanel squid={tableState.squid} squidSettlement={squidSettlement} />}
 
       {/* Main table area */}
-      <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+      <div className="table-area">
         <PokerTable tableState={tableState} holeCards={holeCards} myUserId={myUserId} />
       </div>
 
       {/* Hand result overlay */}
       {handResult && (
-        <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', background: 'rgba(0,0,0,0.9)', padding: 24, borderRadius: 12, zIndex: 50, textAlign: 'center' }}>
-          <h3>Winners: {handResult.winners.join(', ')}</h3>
-          <button onClick={() => useGame.getState().clearResult()}>OK</button>
+        <div className="hand-result">
+          <h3 className="hand-result__title">Winners: {handResult.winners.join(', ')}</h3>
+          <button className="btn btn--md btn--gold" onClick={() => useGame.getState().clearResult()} style={{ marginTop: 12 }}>
+            OK
+          </button>
         </div>
       )}
 
@@ -51,9 +61,12 @@ export function Table({ tableId, onBack }: { tableId: string; onBack: () => void
       {voteRequest && <RunoutVoteModal tableId={tableId} voteRequest={voteRequest} />}
 
       {/* Action bar or host controls */}
-      <div style={{ padding: '8px 16px', background: '#16213e' }}>
+      <div className="table-footer">
         {tableState.status === 'lobby' && isHost && !tableState.hand && (
-          <button onClick={() => useGame.getState().send({ type: 'START_GAME', tableId })} style={{ width: '100%', padding: 12, fontSize: 16, background: '#4caf50', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer' }}>
+          <button
+            className="btn btn--lg btn--gold btn--full"
+            onClick={() => useGame.getState().send({ type: 'START_GAME', tableId })}
+          >
             Start Game
           </button>
         )}
@@ -80,16 +93,16 @@ function SeatPicker({ tableState, tableId }: { tableState: any; tableId: string 
     .map((s: any, i: number) => (s === null ? i : -1))
     .filter((i: number) => i >= 0);
 
-  if (openSeats.length === 0) return <p>Table is full</p>;
+  if (openSeats.length === 0) return <p className="text-secondary">Table is full</p>;
 
   return (
-    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-      <span>Pick a seat:</span>
+    <div className="seat-picker">
+      <span className="seat-picker__label">Pick a seat:</span>
       {openSeats.map((i: number) => (
         <button
           key={i}
+          className="btn btn--sm btn--ghost"
           onClick={() => useGame.getState().send({ type: 'SIT_DOWN', tableId, seatIdx: i })}
-          style={{ padding: '6px 12px', borderRadius: 4, background: '#333', color: 'white', border: '1px solid #555', cursor: 'pointer' }}
         >
           Seat {i + 1}
         </button>

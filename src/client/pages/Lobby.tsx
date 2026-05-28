@@ -47,62 +47,56 @@ export function Lobby({ onNavigateTable }: { onNavigateTable: (id: string) => vo
   }
 
   return (
-    <div style={{ maxWidth: 600, margin: '32px auto', fontFamily: 'system-ui', padding: '0 16px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1>DPoker Lobby</h1>
-        <button onClick={() => useAuth.getState().clear()}>Log out</button>
+    <div className="lobby">
+      <div className="lobby__header">
+        <h1 className="lobby__title">DPoker</h1>
+        <button className="btn btn--sm btn--ghost" onClick={() => useAuth.getState().clear()}>
+          Log out
+        </button>
       </div>
 
       {/* Join by code */}
-      <div style={{ marginBottom: 24, display: 'flex', gap: 8 }}>
+      <div className="lobby__join-bar">
         <input
+          className="input"
           placeholder="Enter table code"
           value={joinCode}
           onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-          style={{ flex: 1, padding: '8px 12px', fontSize: 16 }}
           maxLength={6}
         />
-        <button onClick={handleJoin} disabled={joinCode.length < 4}>Join</button>
+        <button className="btn btn--md btn--primary" onClick={handleJoin} disabled={joinCode.length < 4}>
+          Join
+        </button>
       </div>
 
-      {error && <p style={{ color: 'crimson' }}>{error}</p>}
+      {error && <div className="login-card__error" style={{ marginBottom: 16 }}>{error}</div>}
 
       {/* Table list */}
-      <h2>My Tables</h2>
-      {tables.length === 0 && <p style={{ color: '#888' }}>No tables yet. Create one!</p>}
-      <div style={{ display: 'grid', gap: 8 }}>
+      <h2 className="lobby__section-title">My Tables</h2>
+      {tables.length === 0 && <p className="lobby__empty">No tables yet. Create one!</p>}
+      <div style={{ display: 'grid', gap: 10 }}>
         {tables.map((t) => (
           <div
             key={t.id}
+            className="table-card"
             onClick={() => onNavigateTable(t.id)}
-            style={{
-              padding: 12,
-              border: '1px solid #ddd',
-              borderRadius: 8,
-              cursor: 'pointer',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-            }}
           >
             <div>
-              <strong>{t.name}</strong>
-              <div style={{ fontSize: 12, color: '#888' }}>Code: {t.shortCode}</div>
+              <div className="table-card__name">{t.name}</div>
+              <div className="table-card__code">Code: {t.shortCode}</div>
             </div>
-            <span style={{
-              padding: '2px 8px',
-              borderRadius: 4,
-              fontSize: 12,
-              background: t.status === 'running' ? '#4caf50' : t.status === 'lobby' ? '#2196f3' : '#999',
-              color: 'white',
-            }}>
+            <span className={`table-card__status table-card__status--${t.status === 'running' ? 'running' : t.status === 'lobby' ? 'lobby' : 'default'}`}>
               {t.status}
             </span>
           </div>
         ))}
       </div>
 
-      <button onClick={() => setShowCreate(true)} style={{ marginTop: 16, width: '100%', padding: 12 }}>
+      <button
+        className="btn btn--lg btn--gold btn--full"
+        onClick={() => setShowCreate(true)}
+        style={{ marginTop: 20 }}
+      >
         + Create Table
       </button>
 
@@ -141,39 +135,39 @@ function CreateTableModal({ onClose, onCreate }: { onClose: () => void; onCreate
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
-      <form onSubmit={handleSubmit} style={{ background: 'white', padding: 24, borderRadius: 12, maxWidth: 400, width: '90%' }}>
-        <h2>Create Table</h2>
-        <div style={{ display: 'grid', gap: 12 }}>
-          <input placeholder="Table name" value={name} onChange={(e) => setName(e.target.value)} />
-          <label>
-            Small Blind:
-            <input type="number" min={1} value={smallBlind} onChange={(e) => setSmallBlind(+e.target.value)} />
+    <div className="modal-overlay">
+      <form onSubmit={handleSubmit} className="modal">
+        <h2 className="modal__title">Create Table</h2>
+        <div className="modal__form">
+          <input className="input" placeholder="Table name" value={name} onChange={(e) => setName(e.target.value)} />
+          <label className="modal__label">
+            Small Blind
+            <input className="input" type="number" min={1} value={smallBlind} onChange={(e) => setSmallBlind(+e.target.value)} />
           </label>
-          <label>
-            Big Blind:
-            <input type="number" min={2} value={bigBlind} onChange={(e) => setBigBlind(+e.target.value)} />
+          <label className="modal__label">
+            Big Blind
+            <input className="input" type="number" min={2} value={bigBlind} onChange={(e) => setBigBlind(+e.target.value)} />
           </label>
-          <label>
-            Max Seats:
-            <select value={maxSeats} onChange={(e) => setMaxSeats(+e.target.value)}>
-              {[2,3,4,5,6,7,8,9].map((n) => <option key={n} value={n}>{n}</option>)}
+          <label className="modal__label">
+            Max Seats
+            <select className="select" value={maxSeats} onChange={(e) => setMaxSeats(+e.target.value)}>
+              {[2, 3, 4, 5, 6, 7, 8, 9].map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
           </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <input type="checkbox" checked={squidMode} onChange={(e) => setSquidMode(e.target.checked)} />
+          <label className="modal__label modal__label--row">
+            <input type="checkbox" className="checkbox" checked={squidMode} onChange={(e) => setSquidMode(e.target.checked)} />
             Squid Mode
           </label>
           {squidMode && (
-            <label>
-              Points per Catch:
-              <input type="number" min={1} value={squidPoints} onChange={(e) => setSquidPoints(+e.target.value)} />
+            <label className="modal__label">
+              Points per Catch
+              <input className="input" type="number" min={1} value={squidPoints} onChange={(e) => setSquidPoints(+e.target.value)} />
             </label>
           )}
         </div>
-        <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
-          <button type="button" onClick={onClose}>Cancel</button>
-          <button type="submit">Create</button>
+        <div className="modal__actions">
+          <button type="button" className="btn btn--md btn--ghost" onClick={onClose}>Cancel</button>
+          <button type="submit" className="btn btn--md btn--gold">Create</button>
         </div>
       </form>
     </div>

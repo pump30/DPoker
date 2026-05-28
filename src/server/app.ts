@@ -24,7 +24,7 @@ export function createApp(deps: AppDeps): Express {
 
   app.use('/api/auth', authRoutes(deps.db, deps.authConfig));
   app.use('/api/invites', inviteRoutes(deps.db, deps.authConfig));
-  app.use('/api/tables', tableRoutes(deps.db, deps.authConfig));
+  app.use('/api/tables', tableRoutes(deps.db, deps.authConfig, deps.registry));
 
   if (deps.staticDir) {
     const dir = path.resolve(deps.staticDir);
