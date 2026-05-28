@@ -1,4 +1,5 @@
-import type { Pot } from '../../shared/game-types.js';
+import type { Pot, Card } from '../../shared/game-types.js';
+import { compareWinners, type PlayerCards } from './hand-evaluator.js';
 
 export type Contribution = {
   id: string;
@@ -68,4 +69,57 @@ export function splitIntoPots(contribs: readonly Contribution[]): Pot[] {
   }
 
   return pots;
+}
+
+export type PotAward = {
+  potIndex: number;
+  amount: number;
+  winnerIds: string[];
+  share: number;         // amount / winnerIds.length, rounded down
+  remainder: number;     // any leftover chips (odd-chip rule)
+};
+
+/**
+ * Award all pots to winners based on each pot's eligibleIds.
+ *
+ * For each pot in main→side order, run compareWinners over only the
+ * players whose ids appear in eligibleIds. Distribute the pot's amount
+ * equally among those winners; report any indivisible remainder.
+ *
+ * Caller is responsible for assigning the remainder per house convention
+ * (typically: first active player to dealer's left).
+ */
+export function awardPots(
+  pots: readonly Pot[],
+  players: readonly PlayerCards[],
+  board: readonly Card[],
+): PotAward[] {
+  const awards: PotAward[] = [];
+  for (let i = 0; i < pots.length; i++) {
+    const pot = pots[i];
+    const eligible = players.filter((p) => pot.eligibleIds.includes(p.id));
+    if (eligible.length === 0) continue;
+    if (eligible.length === 1) {
+      awards.push({
+        potIndex: i,
+        amount: pot.amount,
+        winnerIds: [eligible[0].id],
+        share: pot.amount,
+        remainder: 0,
+      });
+      continue;
+    }
+    const winners = compareWinners(eligible, board);
+    const winnerIds = winners.map((w) => w.id);
+    const share = Math.floor(pot.amount / winnerIds.length);
+    const remainder = pot.amount - share * winnerIds.length;
+    awards.push({
+      potIndex: i,
+      amount: pot.amount,
+      winnerIds,
+      share,
+      remainder,
+    });
+  }
+  return awards;
 }

@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { splitIntoPots, type Contribution } from '@server/game/pot.js';
+import { splitIntoPots, awardPots, type Contribution } from '@server/game/pot.js';
+import type { Card } from '@shared/game-types.js';
+import type { PlayerCards } from '@server/game/hand-evaluator.js';
 
 describe('pot.splitIntoPots', () => {
   it('single pot when all bet equal and none folded', () => {
@@ -115,5 +117,79 @@ describe('pot.splitIntoPots', () => {
     const total = pots.reduce((s, p) => s + p.amount, 0);
     expect(total).toBe(350);
     pots.forEach((p) => expect(p.eligibleIds).toEqual(['c']));
+  });
+});
+
+describe('pot.awardPots', () => {
+  const board: Card[] = ['As', 'Kh', 'Qd', 'Jc', '2h'];
+
+  it('single pot, one winner takes all', () => {
+    const pots = [{ amount: 300, eligibleIds: ['p1', 'p2', 'p3'] }];
+    const players: PlayerCards[] = [
+      { id: 'p1', hole: ['Td', '9c'] }, // straight A-T
+      { id: 'p2', hole: ['9s', '9d'] }, // pair of 9s
+      { id: 'p3', hole: ['2c', '3d'] }, // pair of 2s
+    ];
+    const awards = awardPots(pots, players, board);
+    expect(awards).toHaveLength(1);
+    expect(awards[0].winnerIds).toEqual(['p1']);
+    expect(awards[0].share).toBe(300);
+    expect(awards[0].remainder).toBe(0);
+  });
+
+  it('split pot: equal share with no remainder', () => {
+    const splitBoard: Card[] = ['Ah', 'Kd', 'Qc', 'Js', 'Th']; // straight on board
+    const pots = [{ amount: 200, eligibleIds: ['p1', 'p2'] }];
+    const players: PlayerCards[] = [
+      { id: 'p1', hole: ['2c', '3d'] },
+      { id: 'p2', hole: ['4c', '5d'] },
+    ];
+    const awards = awardPots(pots, players, splitBoard);
+    expect(awards[0].winnerIds.sort()).toEqual(['p1', 'p2']);
+    expect(awards[0].share).toBe(100);
+    expect(awards[0].remainder).toBe(0);
+  });
+
+  it('split pot with remainder (odd chip)', () => {
+    const splitBoard: Card[] = ['Ah', 'Kd', 'Qc', 'Js', 'Th'];
+    const pots = [{ amount: 201, eligibleIds: ['p1', 'p2'] }];
+    const players: PlayerCards[] = [
+      { id: 'p1', hole: ['2c', '3d'] },
+      { id: 'p2', hole: ['4c', '5d'] },
+    ];
+    const awards = awardPots(pots, players, splitBoard);
+    expect(awards[0].share).toBe(100);
+    expect(awards[0].remainder).toBe(1);
+  });
+
+  it('multiple side pots: different winners per pot', () => {
+    // p1 short stack (50 each, all-in pre-river, has straight). p2 (200, pair).
+    // p3 (200, two pair).
+    // Main pot 150 (all 3 eligible) — p1 wins straight
+    // Side pot 300 (p2,p3) — p3 wins two pair
+    const pots = [
+      { amount: 150, eligibleIds: ['p1', 'p2', 'p3'] },
+      { amount: 300, eligibleIds: ['p2', 'p3'] },
+    ];
+    const handBoard: Card[] = ['As', 'Kh', '2c', '7d', 'Tc']; // updated for distinct hands
+    const players: PlayerCards[] = [
+      { id: 'p1', hole: ['Qd', 'Jc'] }, // straight A-K-Q-J-T
+      { id: 'p2', hole: ['Ad', '5d'] }, // pair Aces
+      { id: 'p3', hole: ['Ks', '2d'] }, // two pair K+2
+    ];
+    const awards = awardPots(pots, players, handBoard);
+    expect(awards).toHaveLength(2);
+    expect(awards[0].winnerIds).toEqual(['p1']); // main pot
+    expect(awards[0].share).toBe(150);
+    expect(awards[1].winnerIds).toEqual(['p3']); // side pot
+    expect(awards[1].share).toBe(300);
+  });
+
+  it('single eligible player auto-wins regardless of board', () => {
+    const pots = [{ amount: 100, eligibleIds: ['p1'] }];
+    const players: PlayerCards[] = [{ id: 'p1', hole: ['2c', '3d'] }];
+    const awards = awardPots(pots, players, board);
+    expect(awards[0].winnerIds).toEqual(['p1']);
+    expect(awards[0].share).toBe(100);
   });
 });
