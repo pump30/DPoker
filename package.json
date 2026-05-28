@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev:server": "node --env-file=.env --import=./node_modules/tsx/dist/esm/index.cjs --watch src/server/index.ts",
+    "dev:server": "tsx watch src/server/index.ts",
     "dev:client": "vite",
     "build:client": "vite build",
     "build:server": "tsc -p tsconfig.server.json && cp -r src/server/store/migrations dist/server/store/migrations",
@@ -15,22 +15,23 @@
     "lint": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "express": "^4.19.2",
-    "better-sqlite3": "^11.3.0",
     "bcrypt": "^5.1.1",
+    "better-sqlite3": "^11.3.0",
+    "dotenv": "^17.4.2",
+    "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2",
-    "zod": "^3.23.8",
-    "socket.io": "^4.7.5",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.26.2",
-    "zustand": "^4.5.5",
-    "socket.io-client": "^4.7.5"
+    "socket.io": "^4.7.5",
+    "socket.io-client": "^4.7.5",
+    "zod": "^3.23.8",
+    "zustand": "^4.5.5"
   },
   "devDependencies": {
-    "@types/express": "^4.17.21",
-    "@types/better-sqlite3": "^7.6.11",
     "@types/bcrypt": "^5.0.2",
+    "@types/better-sqlite3": "^7.6.11",
+    "@types/express": "^4.17.21",
     "@types/jsonwebtoken": "^9.0.7",
     "@types/node": "^22.7.4",
     "@types/react": "^18.3.10",

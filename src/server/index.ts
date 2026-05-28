@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { loadConfig } from './config.js';
 import { openDb } from './store/db.js';
 import { createApp } from './app.js';
