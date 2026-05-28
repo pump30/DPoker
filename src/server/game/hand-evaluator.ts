@@ -1,4 +1,5 @@
-import { Hand } from 'pokersolver';
+import pkg from 'pokersolver';
+const { Hand } = pkg;
 import type { Card } from '../../shared/game-types.js';
 
 export type HandResult = {

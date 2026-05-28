@@ -6,7 +6,7 @@ import { TableRegistry } from '../../../src/server/runtime/table-registry.js';
 import { EventRepo } from '../../../src/server/store/event.repo.js';
 import { TableRepo } from '../../../src/server/store/table.repo.js';
 import { createSocketGateway } from '../../../src/server/ws/socket.gateway.js';
-import { hashPassword, signToken } from '../../../src/server/runtime/auth.js';
+import { hashPassword } from '../../../src/server/runtime/auth.js';
 import type { AuthConfig } from '../../../src/server/runtime/auth.js';
 import type { TableConfig } from '../../../src/shared/table-types.js';
 import type { DB } from '../../../src/server/store/db.js';
@@ -36,7 +36,6 @@ describe('Table lifecycle (integration)', () => {
   let db: DB;
   let registry: TableRegistry;
   let server: http.Server;
-  let port: number;
 
   beforeAll(async () => {
     db = openDb(':memory:');
@@ -51,7 +50,6 @@ describe('Table lifecycle (integration)', () => {
     await new Promise<void>((resolve) => {
       server.listen(0, () => resolve());
     });
-    port = (server.address() as any).port;
 
     // Seed users
     const hash = await hashPassword('password123');

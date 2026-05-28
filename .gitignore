@@ -9,3 +9,4 @@ data/*.db-*
 .vite/
 coverage/
 .agents/
+bash.exe.stackdump
