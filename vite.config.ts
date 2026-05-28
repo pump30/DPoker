@@ -4,6 +4,7 @@ import path from 'node:path';
 
 export default defineConfig({
   root: 'src/client',
+  plugins: [react()],
   build: {
     outDir: '../../dist/client',
     emptyOutDir: true,
@@ -17,7 +18,9 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/api': 'http://localhost:3000',
+      // Only proxy real backend routes; avoid colliding with src/client/api/* module paths
+      '^/api/(auth|invites|tables|leaderboard)(/.*)?$': 'http://localhost:3000',
+      '/health': 'http://localhost:3000',
       '/ws': { target: 'ws://localhost:3000', ws: true },
     },
   },
