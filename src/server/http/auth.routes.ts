@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { UserRepo } from '../store/user.repo.js';
 import { InviteRepo } from '../store/invite.repo.js';
-import { hashPassword, signToken, type AuthConfig } from '../runtime/auth.js';
+import { hashPassword, verifyPassword, signToken, type AuthConfig } from '../runtime/auth.js';
 import type { DB } from '../store/db.js';
 import type { AuthResponse, ErrorResponse } from '../../shared/api-types.js';
 
@@ -81,6 +81,36 @@ export function authRoutes(db: DB, authConfig: AuthConfig): Router {
       user: { id: user.id, username: user.username, displayName: user.displayName },
     };
     res.status(201).json(response);
+  });
+
+  const LoginSchema = z.object({
+    username: z.string().min(1),
+    password: z.string().min(1),
+  });
+
+  router.post('/login', async (req, res) => {
+    const parsed = LoginSchema.safeParse(req.body);
+    if (!parsed.success) {
+      const err: ErrorResponse = { error: 'invalid_request' };
+      return res.status(400).json(err);
+    }
+    const { username, password } = parsed.data;
+    const user = users.findByUsername(username);
+    if (!user) {
+      const err: ErrorResponse = { error: 'invalid_credentials' };
+      return res.status(401).json(err);
+    }
+    const ok = await verifyPassword(password, user.passwordHash);
+    if (!ok) {
+      const err: ErrorResponse = { error: 'invalid_credentials' };
+      return res.status(401).json(err);
+    }
+    const token = signToken({ userId: user.id }, authConfig);
+    const response: AuthResponse = {
+      token,
+      user: { id: user.id, username: user.username, displayName: user.displayName },
+    };
+    res.json(response);
   });
 
   return router;

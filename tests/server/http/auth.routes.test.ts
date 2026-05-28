@@ -140,3 +140,55 @@ describe('POST /api/auth/register', () => {
     });
   });
 });
+
+describe('POST /api/auth/login', () => {
+  let deps: AppDeps;
+  let inviteCode: string;
+
+  beforeEach(async () => {
+    const fresh = makeDeps();
+    deps = fresh.deps;
+    inviteCode = fresh.inviteCode;
+    const app = createApp(deps);
+    await request(app)
+      .post('/api/auth/register')
+      .send({
+        username: 'alice',
+        password: 'hunter22',
+        displayName: 'Alice',
+        inviteCode,
+      });
+  });
+
+  it('returns token for correct credentials', async () => {
+    const app = createApp(deps);
+    const res = await request(app)
+      .post('/api/auth/login')
+      .send({ username: 'alice', password: 'hunter22' });
+    expect(res.status).toBe(200);
+    expect(res.body.token).toBeTruthy();
+    expect(res.body.user.username).toBe('alice');
+  });
+
+  it('rejects wrong password', async () => {
+    const app = createApp(deps);
+    const res = await request(app)
+      .post('/api/auth/login')
+      .send({ username: 'alice', password: 'wrong' });
+    expect(res.status).toBe(401);
+  });
+
+  it('rejects unknown user', async () => {
+    const app = createApp(deps);
+    const res = await request(app)
+      .post('/api/auth/login')
+      .send({ username: 'ghost', password: 'whatever' });
+    expect(res.status).toBe(401);
+  });
+
+  it('rejects malformed body', async () => {
+    const app = createApp(deps);
+    const res = await request(app).post('/api/auth/login').send({});
+    expect(res.status).toBe(400);
+  });
+});
