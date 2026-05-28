@@ -129,3 +129,67 @@ export function applyAction(state: BettingState, action: Action): BettingState {
     lastRaiseAmount,
   };
 }
+
+/**
+ * Returns the next player who must act, or null if the betting round is closed.
+ * Walks players[] in seat order starting after the current actor.
+ *
+ * A player is "must act" when: !folded && !allIn && (!hasActed || bet < currentBet).
+ */
+export function getNextActor(state: BettingState): string | null {
+  const idx = state.players.findIndex((p) => p.id === state.actorId);
+  if (idx < 0) return null;
+  const n = state.players.length;
+  for (let off = 1; off <= n; off++) {
+    const p = state.players[(idx + off) % n];
+    if (!p.folded && !p.allIn && (!p.hasActed || p.bet < state.currentBet)) {
+      return p.id;
+    }
+  }
+  return null;
+}
+
+/**
+ * Returns true when the betting round is finished:
+ *   - 0 or 1 active (non-folded, non-all-in) players remain who can still
+ *     respond, AND
+ *   - all active players have either matched currentBet or are all-in.
+ */
+export function isBettingRoundClosed(state: BettingState): boolean {
+  const active = state.players.filter((p) => !p.folded && !p.allIn);
+  // If everyone folded except one, hand ends elsewhere — but the round is closed.
+  if (state.players.filter((p) => !p.folded).length <= 1) return true;
+  for (const p of active) {
+    if (!p.hasActed) return false;
+    if (p.bet < state.currentBet) return false;
+  }
+  return true;
+}
+
+/**
+ * Returns the players who are still active in the betting round (not folded).
+ * Includes all-in players because they remain in the hand for showdown.
+ */
+export function activePlayers(state: BettingState): PlayerBet[] {
+  return state.players.filter((p) => !p.folded);
+}
+
+/**
+ * Reset all hasActed flags and bets for the next betting street.
+ * Returns a new BettingState with currentBet=0, minRaise=bigBlind, etc.
+ * The first-to-act for the next street is the input firstActorId.
+ */
+export function startNewStreet(state: BettingState, firstActorId: string): BettingState {
+  return {
+    ...state,
+    players: state.players.map((p) => ({
+      ...p,
+      bet: 0,
+      hasActed: p.folded || p.allIn, // folded/all-in players don't need to act
+    })),
+    currentBet: 0,
+    minRaise: state.bigBlind,
+    lastRaiseAmount: 0,
+    actorId: firstActorId,
+  };
+}
