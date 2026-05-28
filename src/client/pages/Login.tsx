@@ -35,52 +35,72 @@ export function Login() {
   }
 
   return (
-    <div style={{ maxWidth: 360, margin: '64px auto', fontFamily: 'system-ui' }}>
-      <h1>DPoker</h1>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-        <button onClick={() => setTab('login')} disabled={tab === 'login'}>
-          Login
-        </button>
-        <button onClick={() => setTab('register')} disabled={tab === 'register'}>
-          Register
-        </button>
+    <div className="login-page">
+      <div className="login-card">
+        {/* Poker chip logo */}
+        <div className="login-card__logo">D</div>
+        <h1 className="login-card__title">DPoker</h1>
+
+        {/* Tabs */}
+        <div className="login-card__tabs">
+          <button
+            type="button"
+            className={`login-card__tab ${tab === 'login' ? 'login-card__tab--active' : ''}`}
+            onClick={() => setTab('login')}
+          >
+            Login
+          </button>
+          <button
+            type="button"
+            className={`login-card__tab ${tab === 'register' ? 'login-card__tab--active' : ''}`}
+            onClick={() => setTab('register')}
+          >
+            Register
+          </button>
+        </div>
+
+        {/* Form */}
+        <form onSubmit={onSubmit} className="login-card__form">
+          <input
+            className="input"
+            placeholder="Username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            required
+          />
+          <input
+            className="input"
+            type="password"
+            placeholder="Password (min 8 chars)"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            minLength={tab === 'register' ? 8 : 1}
+          />
+          {tab === 'register' && (
+            <>
+              <input
+                className="input"
+                placeholder="Display name"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                required
+              />
+              <input
+                className="input"
+                placeholder="Invite code"
+                value={inviteCode}
+                onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+                required
+              />
+            </>
+          )}
+          <button type="submit" className="btn btn--lg btn--primary btn--full" disabled={busy}>
+            {busy ? '...' : tab === 'login' ? 'Login' : 'Register'}
+          </button>
+          {error && <div className="login-card__error">{error}</div>}
+        </form>
       </div>
-      <form onSubmit={onSubmit} style={{ display: 'grid', gap: 8 }}>
-        <input
-          placeholder="Username"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          required
-        />
-        <input
-          type="password"
-          placeholder="Password (min 8 chars)"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-          minLength={tab === 'register' ? 8 : 1}
-        />
-        {tab === 'register' && (
-          <>
-            <input
-              placeholder="Display name"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              required
-            />
-            <input
-              placeholder="Invite code"
-              value={inviteCode}
-              onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
-              required
-            />
-          </>
-        )}
-        <button type="submit" disabled={busy}>
-          {busy ? '...' : tab === 'login' ? 'Login' : 'Register'}
-        </button>
-        {error && <p style={{ color: 'crimson' }}>{error}</p>}
-      </form>
     </div>
   );
 }

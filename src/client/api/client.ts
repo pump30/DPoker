@@ -5,6 +5,7 @@ import type {
   CreateInviteResponse,
   ErrorResponse,
 } from '../../shared/api-types.js';
+import type { TableConfig } from '../../shared/table-types.js';
 
 class ApiError extends Error {
   constructor(public status: number, public code: string) {
@@ -41,6 +42,12 @@ export const api = {
     request<AuthResponse>('/api/auth/login', { method: 'POST', body }),
   createInvite: (token: string) =>
     request<CreateInviteResponse>('/api/invites', { method: 'POST', token }),
+  createTable: (token: string, config: TableConfig) =>
+    request<{ id: string; shortCode: string }>('/api/tables', { method: 'POST', body: { config }, token }),
+  listTables: (token: string) =>
+    request<{ tables: Array<{ id: string; shortCode: string; name: string; status: string; createdAt: number }> }>('/api/tables', { method: 'GET', token }),
+  joinTable: (token: string, shortCode: string) =>
+    request<{ tableId: string }>('/api/tables/join', { method: 'POST', body: { shortCode }, token }),
 };
 
 export { ApiError };

@@ -21,7 +21,7 @@ export default defineConfig({
       // Only proxy real backend routes; avoid colliding with src/client/api/* module paths
       '^/api/(auth|invites|tables|leaderboard)(/.*)?$': 'http://localhost:3000',
       '/health': 'http://localhost:3000',
-      '/ws': { target: 'ws://localhost:3000', ws: true },
+      '/socket.io': { target: 'http://localhost:3000', ws: true },
     },
   },
 });
