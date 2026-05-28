@@ -1,4 +1,8 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
+import { unlinkSync } from 'node:fs';
+import path from 'node:path';
+import { tmpdir } from 'node:os';
+import { openDb } from '@server/store/db.js';
 import { makeTestDb } from '../../helpers/test-db.js';
 
 describe('db migrations', () => {
@@ -13,12 +17,26 @@ describe('db migrations', () => {
     expect(tables).toContain('sessions');
   });
 
-  it('is idempotent', () => {
-    const db = makeTestDb();
-    expect(() => {
-      db.exec(
-        `INSERT INTO _migrations (name, applied_at) VALUES ('001_init.sql', ${Date.now()}) ON CONFLICT DO NOTHING`,
-      );
-    }).not.toThrow();
+  it('runMigrations is idempotent across reopens', () => {
+    const tmpFile = path.join(tmpdir(), `dpoker-test-${Date.now()}-${Math.random()}.db`);
+    try {
+      const db1 = openDb(tmpFile);
+      const before = db1.prepare('SELECT COUNT(*) as c FROM _migrations').get() as { c: number };
+      db1.close();
+
+      // Re-open: should not re-apply or throw
+      expect(() => openDb(tmpFile)).not.toThrow();
+
+      const db2 = openDb(tmpFile);
+      const after = db2.prepare('SELECT COUNT(*) as c FROM _migrations').get() as { c: number };
+      db2.close();
+
+      expect(before.c).toBe(after.c);
+      expect(before.c).toBeGreaterThan(0);
+    } finally {
+      try { unlinkSync(tmpFile); } catch {}
+      try { unlinkSync(tmpFile + '-wal'); } catch {}
+      try { unlinkSync(tmpFile + '-shm'); } catch {}
+    }
   });
 });

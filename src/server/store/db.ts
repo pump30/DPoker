@@ -38,7 +38,7 @@ function runMigrations(db: DB): void {
       insert.run(file, Date.now());
       db.exec('COMMIT');
     } catch (err) {
-      db.exec('ROLLBACK');
+      try { db.exec('ROLLBACK'); } catch {}
       throw err;
     }
   }
