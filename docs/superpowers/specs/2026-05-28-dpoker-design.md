@@ -74,8 +74,9 @@
 | 部署单元 | 单容器单进程 | 朋友局规模 ≤ 9 人，无需水平扩展，运维最简 |
 | 数据库 | SQLite (better-sqlite3) | 文件即数据库，备份就是 cp，性能足够 |
 | 实时通讯 | Socket.IO | 自动重连、房间机制、跨浏览器和移动端兼容性好 |
-| 桌面运行时状态 | 内存 | 性能优先；落盘只为持久化用户/历史/积分 |
-| 崩溃恢复 | 不恢复进行中的牌局 | 朋友局可接受重开；避免序列化复杂状态机 |
+| 桌面运行时状态 | 内存 + 事件 log（event sourcing） | 同时落盘事件日志，重启 replay 可恢复手内 |
+| 状态管理范式 | Reducer + 事件 log | 纯函数 reduce(state, event) → newState；可单测、可重放、可审计 |
+| 崩溃恢复 | 完整 event sourcing 恢复（含手内） | 已选事件 log 架构，复用成本低 |
 | 前端静态文件 | Node 同进程托管 | 减少容器数；如有需要可外加 nginx 反代 |
 
 ### 2.3 技术栈
@@ -380,9 +381,9 @@ type TableConfig = {
 
 ### 5.7 崩溃恢复语义
 
-- 进程重启 → 内存桌面全部丢失
-- 已写入 hand_history 与 table_stats 的历史保留
-- 玩家重连看到提示"桌子已关闭"，房主可重开新桌；老桌的积分榜仍可查询
+- 进程重启 → `runtime/table-registry` 内存清空，**从事件 log replay 恢复所有 RUNNING 状态的桌**
+- 重启期间断开的玩家 socket 重连后，从事件 log 接续，行为如同短断线
+- 详见 §12.12 事件溯源与崩溃恢复
 
 ---
 
@@ -592,14 +593,166 @@ services:
 
 | 风险 | 缓解 |
 |---|---|
-| 进程重启丢失进行中牌局 | 朋友局可接受；UI 提示重开新桌 |
+| 进程重启时手内崩溃恢复的状态机错误 | 事件 log replay 受严格单测覆盖；replay 失败的桌降级为关桌处理（参考 §12.12） |
 | pokersolver 库异常或不维护 | 逻辑封装在 `hand-evaluator.ts` 一处，方便替换 |
 | NAS 网络外部访问 | 由用户自行配置反向代理 / 端口转发 / 内网穿透；本应用不负责 |
-| 时钟漂移影响超时判定 | 服务端单一时钟权威，客户端只显示倒计时，不参与判定 |
+| 时钟漂移影响超时判定 | 服务端单一时钟权威，超时使用绝对时间戳广播给客户端，客户端只显示倒计时 |
+| Heads-up 盲注规则写错 | 对 §12.3 标准 heads-up 规则单独覆盖测试 |
+| 事件 log 表无限增长 | 桌子 CLOSED 后 N 天清理；保留聚合后的 hand_history 与 table_stats |
 
 ---
 
-## 12. 实现顺序建议（待 writing-plans 细化）
+## 12. 规则与工程细节补充
+
+本节集中说明对照主流开源实现后明确的边角规则与工程约束。
+
+### 12.1 断线与重连
+
+- **短断线（≤ 30 秒）**：座位保留、手牌保留、超时计时器照常走。重连后无缝继续
+- **长断线（> 30 秒）**：本手当前阶段自动 fold（如可 check 则 check），保留座位 N 手不参与
+- **超时阈值 N**：默认 3 手，可在 TableConfig 中调整
+- **N 手内未回**：座位回收，玩家剩余筹码冻结进 `pending_cashout`（重新坐下时返还）
+- 客户端重连必须携带 `sessionToken`，不依赖 `socket.id`；服务端按 userId + tableId 做映射，重新订阅房间 + 推送当前 publicState（含 `lastEventSeq`）
+
+### 12.2 行动超时与 Time Bank
+
+- **基础时长**：`actionTimeoutSec`（默认 30 秒），每手每个行动起始时刻计算
+- **Time Bank**：玩家入桌时获得 `timeBankSec`（默认 60 秒）的总池
+- 基础时间用完后，客户端弹出"启用 time bank"按钮，点击后切到 time bank 倒计时；time bank 池逐秒扣减（仅当前回合扣减 = 实际使用秒数）
+- Time bank 池子在桌内累积/扣减，每手开始时按 `timeBankRefillPerHand` 回血（默认 0，初版关闭回血）
+- **超时统一规则**：基础时间 + time bank 都耗尽时 → 自动 check（如可），否则自动 fold
+- **时间广播**：服务端将"截止时刻 deadlineMs（绝对 epoch 毫秒）"广播给客户端；客户端只用于显示，不参与判定
+
+### 12.3 Heads-up（2 人对决）规则
+
+严格按赌场标准实现：
+
+- **Pre-flop**：button 同时是小盲，对手是大盲；**button 先行动**
+- **Post-flop**：大盲先行动（即非 button 先行动）
+- 对应代码：`betting.ts` 中下注顺序计算函数对 N=2 走专门分支
+- 此规则必须有专门的单元测试覆盖（开源项目常见错误）
+
+### 12.4 中途入坐与离座
+
+- **入坐**：默认等到自己自然轮到 BB 位才入局；坐下后状态为 `WAITING_FOR_BB`
+- **离座**：标记 `sitOutNextHand`，本手照常进行；本手结束后正式离座，剩余筹码留在座位（重坐时自动取回）
+- 玩家若在 `WAITING_FOR_BB` 状态下站起再回来，视同未入局，不必补盲
+- 玩家若已入局后离座，再回来落座时若距离上次离开 < `bbRotationsBeforeAvoidanceCheck`（默认 1 轮 BB），需补缴错过的大盲后入局，防止"逃避大盲"
+
+### 12.5 Dead Button 规则
+
+- 采用赌场标准 Dead Button：当原 BB 位玩家离开时，button 仍按顺序推进，可能出现 button 落在空座的情况
+- 对应代码：`table-state.ts` 中庄家位推进函数维护"虚拟 button"——记录 button 应在的逻辑位置，渲染时若落在空座则显示为 dead button
+- 单元测试覆盖：玩家离开 BB 位 / SB 位 / button 位三种场景下的下一手庄家位推进
+
+### 12.6 Straddle（翻前加盲）
+
+- UTG 玩家可在拿牌前主动声明 straddle，下注 2× BB，**临时成为最后行动者**
+- 支持 single straddle（仅 UTG）；初版**不支持** double/Mississippi straddle
+- 客户端在 `HAND_STARTING` 阶段轮到 UTG 收 BB 之前弹出"是否 straddle?"按钮，3 秒内未选则按 no
+- 服务端校验 straddle 仅来自 UTG，且玩家筹码 ≥ 2× BB
+
+### 12.7 边池切分（Side Pot）
+
+经典分层算法：
+
+```
+sortedContribs = 按贡献额升序排列玩家投入额（去重）
+prevLevel = 0
+for level in sortedContribs:
+  layerAmount = (level - prevLevel) * 该层及更高层的玩家数
+  pot = { amount: layerAmount, eligibleIds: 投入 >= level 的所有玩家 }
+  pots.push(pot)
+  prevLevel = level
+```
+
+边角规则：
+- 弃牌玩家的筹码仍归入对应层级 pot，但其 id **不在 eligibleIds**
+- 多人同 all-in 同额时合并入同一 pot
+- showdown 时按 pot 顺序结算：每个 pot 仅在其 eligibleIds 中比较手牌
+
+`pot.ts` 必须有测试用例覆盖：单人 all-in / 多人不同额 all-in / 弃牌玩家筹码归集 / split pot 多人共赢。
+
+### 12.8 加注合法性
+
+- **最小加注**：`minRaise = 上一次加注的增量`（不是总下注额）。无前置加注时 `minRaise = bigBlind`
+- **不完整 all-in 加注**：玩家 all-in 但金额 `< minRaise` 时，只构成 call + 不完整加注；**不重新打开**已行动玩家的行动权
+- **min-raise 推进**：每次合法加注后，`minRaise` 更新为该次加注的增量
+- 服务端 `betting.ts` 维护 `lastRaiseAmount` 与 `actionReopened` 标志
+
+### 12.9 Run It Twice 触发条件
+
+- 仅当**至少一方已 all-in 且当前阶段在 river 之前**（即仍有 turn 或 river 待发）才触发投票
+- River 已发完后的 all-in（边池小变化）不触发
+- 投票主体：所有未弃牌玩家中**已 all-in 或自动跟进的玩家**
+- 一票否决规则不变（任一人选 1 即 1）
+
+### 12.10 Commit-Reveal 洗牌审计
+
+每手开始时执行：
+
+1. 服务端用 `crypto.randomBytes(32)` 生成 `serverSeed`
+2. 计算 `commitHash = sha256(serverSeed)`
+3. 广播 `HAND_DEAL_COMMIT { handNo, commitHash }` 给所有玩家
+4. 用 `serverSeed` 作为洗牌种子（Fisher-Yates + `crypto.randomInt`），开始发牌
+5. 手牌结束 SHOWDOWN 后广播 `HAND_DEAL_REVEAL { handNo, serverSeed, finalDeck }`
+6. 客户端可验证：`sha256(serverSeed) === commitHash`，且按 seed 重放洗牌得到 `finalDeck`
+
+事件 log 同时记录 commit 与 reveal，hand_history 落盘 `serverSeed` 字段供事后审计。
+
+### 12.11 事件序列号与状态同步
+
+- 服务端为每个桌维护单调递增的 `eventSeq`
+- 所有广播事件携带 `{ tableId, seq, payload }`
+- 客户端记录已收到的最大 `lastSeq`
+- 重连时客户端发 `RESYNC { tableId, lastSeq }`，服务端补发缺失事件（如超过 log 保留窗口则推送当前完整 publicState 替代）
+
+### 12.12 事件溯源与崩溃恢复
+
+#### 事件 log 表
+
+```sql
+CREATE TABLE event_log (
+  table_id    TEXT NOT NULL,
+  seq         INTEGER NOT NULL,
+  type        TEXT NOT NULL,
+  payload     TEXT NOT NULL,         -- JSON
+  created_at  INTEGER NOT NULL,
+  PRIMARY KEY (table_id, seq)
+);
+CREATE INDEX idx_event_log_table ON event_log(table_id, seq);
+```
+
+#### 写入策略
+
+- 每个 reducer 的输入事件都写入 `event_log`
+- 同一事务内写 event_log + 更新派生表（hand_history / table_stats）
+- WAL 模式下同步写入性能足够（朋友局规模 < 100 events/秒）
+
+#### Replay 策略
+
+启动时：
+1. 查询所有 `status IN ('lobby','running','paused')` 的桌
+2. 对每张桌按 `seq` 升序加载所有 event
+3. 用纯函数 `reduce(initialState, events)` 重建当前状态
+4. 注册到 `table-registry`
+5. Replay 失败的桌（状态机 throw）→ 自动标记 `closed`，记录 admin 日志
+
+#### Replay 边界
+
+- 进行中的行动超时定时器在重启后**重新启动**，截止时刻按 event 中的 `deadlineMs` 计算（已过则立即触发超时事件）
+- 客户端重连后通过 `RESYNC` 流程拿到当前状态
+
+#### 清理策略
+
+- 桌 `closed` 后 7 天清理对应 `event_log` 记录（聚合数据 hand_history / table_stats 永久保留）
+- 通过定时任务执行，初版可手动触发
+
+---
+
+
+
+## 13. 实现顺序建议（待 writing-plans 细化）
 
 1. 项目骨架 + Docker + SQLite 初始化
 2. 注册 / 登录 / 邀请码 HTTP API
