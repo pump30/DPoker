@@ -82,4 +82,61 @@ describe('POST /api/auth/register', () => {
       .send({ username: 'bob', password: 'hunter22', displayName: 'B', inviteCode });
     expect(res.status).toBe(403);
   });
+
+  describe('zod boundary validation', () => {
+    it('rejects username shorter than 3 chars', async () => {
+      const app = createApp(deps);
+      const res = await request(app).post('/api/auth/register').send({
+        username: 'al',
+        password: 'hunter22',
+        displayName: 'A',
+        inviteCode,
+      });
+      expect(res.status).toBe(400);
+    });
+
+    it('rejects username with space', async () => {
+      const app = createApp(deps);
+      const res = await request(app).post('/api/auth/register').send({
+        username: 'alice jones',
+        password: 'hunter22',
+        displayName: 'A',
+        inviteCode,
+      });
+      expect(res.status).toBe(400);
+    });
+
+    it('rejects password shorter than 8 chars', async () => {
+      const app = createApp(deps);
+      const res = await request(app).post('/api/auth/register').send({
+        username: 'alice',
+        password: '1234567',
+        displayName: 'A',
+        inviteCode,
+      });
+      expect(res.status).toBe(400);
+    });
+
+    it('accepts exactly 8-char password', async () => {
+      const app = createApp(deps);
+      const res = await request(app).post('/api/auth/register').send({
+        username: 'alice',
+        password: '12345678',
+        displayName: 'A',
+        inviteCode,
+      });
+      expect(res.status).toBe(201);
+    });
+
+    it('rejects inviteCode longer than 16 chars', async () => {
+      const app = createApp(deps);
+      const res = await request(app).post('/api/auth/register').send({
+        username: 'alice',
+        password: 'hunter22',
+        displayName: 'A',
+        inviteCode: 'A'.repeat(17),
+      });
+      expect(res.status).toBe(400);
+    });
+  });
 });
