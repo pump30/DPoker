@@ -3,7 +3,7 @@ import { z } from 'zod';
 const Schema = z.object({
   PORT: z.coerce.number().int().positive().default(3000),
   DB_PATH: z.string().default('./data/dpoker.db'),
-  JWT_SECRET: z.string().min(16, 'JWT_SECRET must be at least 16 chars'),
+  JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 chars'),
   JWT_EXPIRES_IN: z.string().default('30d'),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
 });
@@ -20,6 +20,7 @@ function parseDuration(input: string): number {
   const m = input.match(/^(\d+)([smhd])$/);
   if (!m) throw new Error(`Invalid duration: ${input}`);
   const n = parseInt(m[1], 10);
+  if (n <= 0) throw new Error(`Invalid duration: ${input}`);
   const unit = m[2];
   const mult = { s: 1, m: 60, h: 3600, d: 86400 }[unit]!;
   return n * mult;
