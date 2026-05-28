@@ -31,16 +31,11 @@ export function runRemainder(input: RunoutInput): RunoutResult {
 
   const boards: Card[][] = [];
   let cursor = 0;
-  const n = seq.length;
 
   for (let r = 0; r < input.runs; r++) {
     const board = [...input.currentBoard];
-    for (let i = 0; i < n; i++) {
-      const step = seq[i];
-      // Middle stages (indices 1..n-2) accumulate one extra burn per additional run
-      // to maintain deck separation between concurrent run streams.
-      const extraBurn = i >= 1 && i <= n - 2 ? r : 0;
-      cursor += step.burn + extraBurn;
+    for (const step of seq) {
+      cursor += step.burn;
       if (cursor + step.reveal > input.deck.length) {
         throw new Error('not enough cards for runout');
       }

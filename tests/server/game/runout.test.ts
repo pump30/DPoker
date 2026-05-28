@@ -39,10 +39,10 @@ describe('runout.runRemainder', () => {
 
   it('runs=2 at flop time: each run burns + flops + burns + turns + burns + rivers (separate streams)', () => {
     const r = runRemainder({ deck, currentBoard: [], runs: 2 });
-    // run 1: burn 0, flop 1-3, burn 4, turn 5, burn 6, river 7
-    // run 2: burn 8, flop 9-11, burn 12, turn 13, burn 14, river 15
+    // run 1: burn deck[0], flop deck[1..3]=3c,4c,5c, burn deck[4], turn deck[5]=7c, burn deck[6], river deck[7]=9c (cursor=8)
+    // run 2: burn deck[8], flop deck[9..11]=Jc,Qc,Kc, burn deck[12], turn deck[13]=2d, burn deck[14], river deck[15]=4d
     expect(r.boards[0]).toEqual(['3c', '4c', '5c', '7c', '9c']);
-    expect(r.boards[1]).toEqual(['Jc', 'Qc', 'Kc', '3d', '5d']);
+    expect(r.boards[1]).toEqual(['Jc', 'Qc', 'Kc', '2d', '4d']);
   });
 
   it('throws when not enough cards', () => {
