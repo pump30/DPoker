@@ -122,9 +122,12 @@ function handleClientEvent(
     case 'BUY_IN':
       event = { type: 'SIT_DOWN', userId, seat: -1, buyIn: data.amount, nowMs };
       return;
-    case 'SIT_DOWN':
-      event = { type: 'SIT_DOWN', userId, seat: data.seatIdx, buyIn: 0, nowMs };
+    case 'SIT_DOWN': {
+      const state = registry.getState(tableId);
+      const buyIn = data.buyIn ?? state?.config.minBuyIn ?? 100;
+      event = { type: 'SIT_DOWN', userId, seat: data.seatIdx, buyIn, nowMs };
       break;
+    }
     case 'STAND_UP':
       event = { type: 'STAND_UP', userId, nowMs };
       break;

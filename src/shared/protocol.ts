@@ -47,7 +47,7 @@ export type ClientEvent =
   | { type: 'CLOSE_TABLE'; tableId: string }
   | { type: 'RUNOUT_VOTE'; tableId: string; choice: 1 | 2 }
   | { type: 'BUY_IN'; tableId: string; amount: number }
-  | { type: 'SIT_DOWN'; tableId: string; seatIdx: number }
+  | { type: 'SIT_DOWN'; tableId: string; seatIdx: number; buyIn?: number }
   | { type: 'STAND_UP'; tableId: string }
   | { type: 'RESYNC'; tableId: string; lastSeq: number };
 
