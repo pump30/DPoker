@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { unlinkSync } from 'node:fs';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
