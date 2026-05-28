@@ -58,4 +58,21 @@ describe('loadConfig', () => {
     expect(make('2h')).toBe(2 * 3600);
     expect(make('1d')).toBe(86400);
   });
+
+  it('rejects placeholder JWT_SECRET in production mode', () => {
+    expect(() =>
+      loadConfig({
+        JWT_SECRET: 'REPLACE_ME_RUN_OPENSSL_RAND_HEX_32_THIS_VALUE_IS_NOT_SECURE',
+        NODE_ENV: 'production',
+      } as any),
+    ).toThrow(/placeholder/);
+  });
+
+  it('allows placeholder JWT_SECRET in non-production mode', () => {
+    const cfg = loadConfig({
+      JWT_SECRET: 'REPLACE_ME_RUN_OPENSSL_RAND_HEX_32_THIS_VALUE_IS_NOT_SECURE',
+      NODE_ENV: 'development',
+    } as any);
+    expect(cfg.jwtSecret).toBe('REPLACE_ME_RUN_OPENSSL_RAND_HEX_32_THIS_VALUE_IS_NOT_SECURE');
+  });
 });

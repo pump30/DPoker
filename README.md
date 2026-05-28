@@ -8,7 +8,7 @@
 
 ```bash
 npm install
-cp .env.example .env  # 修改 JWT_SECRET
+cp .env.example .env  # IMPORTANT: edit JWT_SECRET — do not use the placeholder
 npm run dev:server   # 后端 :3000
 npm run dev:client   # 前端 :5173
 ```

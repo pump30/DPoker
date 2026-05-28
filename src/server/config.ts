@@ -26,8 +26,15 @@ function parseDuration(input: string): number {
   return n * mult;
 }
 
+const FORBIDDEN_PLACEHOLDER = 'REPLACE_ME_RUN_OPENSSL_RAND_HEX_32_THIS_VALUE_IS_NOT_SECURE';
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const parsed = Schema.parse(env);
+  if (parsed.NODE_ENV === 'production' && parsed.JWT_SECRET === FORBIDDEN_PLACEHOLDER) {
+    throw new Error(
+      'Refusing to start in production with placeholder JWT_SECRET. Generate one: openssl rand -hex 32',
+    );
+  }
   return {
     port: parsed.PORT,
     dbPath: parsed.DB_PATH,
