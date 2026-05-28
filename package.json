@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev:server": "tsx watch src/server/index.ts",
+    "dev:server": "node --env-file=.env --import=./node_modules/tsx/dist/esm/index.cjs --watch src/server/index.ts",
     "dev:client": "vite",
     "build:client": "vite build",
     "build:server": "tsc -p tsconfig.server.json && cp -r src/server/store/migrations dist/server/store/migrations",
