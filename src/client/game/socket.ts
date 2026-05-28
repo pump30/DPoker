@@ -11,9 +11,8 @@ export function getSocket(): Socket {
   if (!token) throw new Error('not authenticated');
 
   socket = io(window.location.origin, {
-    path: '/ws',
+    path: '/socket.io/',
     auth: { token, displayName: useAuth.getState().user?.displayName },
-    transports: ['websocket', 'polling'],
   });
 
   return socket;

@@ -20,7 +20,6 @@ export type GatewayDeps = {
 export function createSocketGateway(httpServer: HttpServer, deps: GatewayDeps): IOServer {
   const io = new IOServer(httpServer, {
     cors: { origin: '*', methods: ['GET', 'POST'] },
-    path: '/ws',
   });
 
   const { registry, authConfig } = deps;
