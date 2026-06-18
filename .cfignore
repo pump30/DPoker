@@ -1,0 +1,15 @@
+node_modules/
+src/
+data/
+.git/
+.env
+*.db
+tests/
+docs/
+.claude/
+tsconfig*.json
+vite.config.ts
+vitest.config.ts
+Dockerfile
+docker-compose.yml
+.dockerignore

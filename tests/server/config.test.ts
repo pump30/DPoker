@@ -4,7 +4,7 @@ import { loadConfig } from '@server/config.js';
 const validBase = {
   JWT_SECRET: 'a'.repeat(32),
   PORT: '3001',
-  DB_PATH: '/tmp/foo.db',
+  DATABASE_URL: 'postgresql://localhost:5432/test',
   JWT_EXPIRES_IN: '7d',
   NODE_ENV: 'test' as const,
 };
@@ -13,7 +13,7 @@ describe('loadConfig', () => {
   it('parses a valid environment', () => {
     const cfg = loadConfig(validBase as any);
     expect(cfg.port).toBe(3001);
-    expect(cfg.dbPath).toBe('/tmp/foo.db');
+    expect(cfg.databaseUrl).toBe('postgresql://localhost:5432/test');
     expect(cfg.jwtSecret).toBe(validBase.JWT_SECRET);
     expect(cfg.jwtExpiresInSec).toBe(7 * 86400);
     expect(cfg.nodeEnv).toBe('test');
@@ -22,7 +22,7 @@ describe('loadConfig', () => {
   it('applies defaults', () => {
     const cfg = loadConfig({ JWT_SECRET: 'a'.repeat(32) } as any);
     expect(cfg.port).toBe(3000);
-    expect(cfg.dbPath).toBe('./data/dpoker.db');
+    expect(cfg.databaseUrl).toBe('postgresql://localhost:5432/dpoker');
     expect(cfg.jwtExpiresInSec).toBe(30 * 86400);
     expect(cfg.nodeEnv).toBe('development');
   });
@@ -74,5 +74,35 @@ describe('loadConfig', () => {
       NODE_ENV: 'development',
     } as any);
     expect(cfg.jwtSecret).toBe('REPLACE_ME_RUN_OPENSSL_RAND_HEX_32_THIS_VALUE_IS_NOT_SECURE');
+  });
+
+  it('extracts databaseUrl from VCAP_SERVICES', () => {
+    const vcap = JSON.stringify({
+      'postgresql-db': [{
+        credentials: { uri: 'postgresql://user:pass@host:5432/db' },
+      }],
+    });
+    const cfg = loadConfig({
+      JWT_SECRET: 'a'.repeat(32),
+      VCAP_SERVICES: vcap,
+    } as any);
+    expect(cfg.databaseUrl).toBe('postgresql://user:pass@host:5432/db');
+  });
+
+  it('DATABASE_URL takes precedence over default in dev', () => {
+    const cfg = loadConfig({
+      JWT_SECRET: 'a'.repeat(32),
+      DATABASE_URL: 'postgresql://custom:5433/mydb',
+    } as any);
+    expect(cfg.databaseUrl).toBe('postgresql://custom:5433/mydb');
+  });
+
+  it('rejects production without database URL', () => {
+    expect(() =>
+      loadConfig({
+        JWT_SECRET: 'a'.repeat(32),
+        NODE_ENV: 'production',
+      } as any),
+    ).toThrow(/No database URL/);
   });
 });

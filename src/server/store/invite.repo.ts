@@ -13,8 +13,8 @@ type Row = {
   code: string;
   created_by: string | null;
   used_by: string | null;
-  created_at: number;
-  used_at: number | null;
+  created_at: string;
+  used_at: string | null;
 };
 
 function rowToInvite(row: Row): Invite {
@@ -22,8 +22,8 @@ function rowToInvite(row: Row): Invite {
     code: row.code,
     createdBy: row.created_by,
     usedBy: row.used_by,
-    createdAt: row.created_at,
-    usedAt: row.used_at,
+    createdAt: Number(row.created_at),
+    usedAt: row.used_at ? Number(row.used_at) : null,
   };
 }
 
@@ -40,22 +40,20 @@ function generateCode(): string {
 export class InviteRepo {
   constructor(private db: DB) {}
 
-  create(createdBy: string | null): Invite {
+  async create(createdBy: string | null): Promise<Invite> {
     const code = generateCode();
     const createdAt = Date.now();
-    this.db
-      .prepare(
-        `INSERT INTO invites (code, created_by, used_by, created_at, used_at)
-         VALUES (?, ?, NULL, ?, NULL)`,
-      )
-      .run(code, createdBy, createdAt);
+    await this.db.query(
+      `INSERT INTO invites (code, created_by, used_by, created_at, used_at)
+       VALUES ($1, $2, NULL, $3, NULL)`,
+      [code, createdBy, createdAt],
+    );
     return { code, createdBy, usedBy: null, createdAt, usedAt: null };
   }
 
-  findByCode(code: string): Invite | null {
-    const row = this.db.prepare('SELECT * FROM invites WHERE code = ?').get(code) as
-      | Row
-      | undefined;
+  async findByCode(code: string): Promise<Invite | null> {
+    const { rows } = await this.db.query('SELECT * FROM invites WHERE code = $1', [code]);
+    const row = rows[0] as Row | undefined;
     return row ? rowToInvite(row) : null;
   }
 
@@ -63,13 +61,12 @@ export class InviteRepo {
    * Atomically claim invite for userId. Returns true if successful, false if
    * code does not exist or is already used.
    */
-  claim(code: string, userId: string): boolean {
-    const result = this.db
-      .prepare(
-        `UPDATE invites SET used_by = ?, used_at = ?
-         WHERE code = ? AND used_by IS NULL`,
-      )
-      .run(userId, Date.now(), code);
-    return result.changes === 1;
+  async claim(code: string, userId: string): Promise<boolean> {
+    const result = await this.db.query(
+      `UPDATE invites SET used_by = $1, used_at = $2
+       WHERE code = $3 AND used_by IS NULL`,
+      [userId, Date.now(), code],
+    );
+    return result.rowCount === 1;
   }
 }

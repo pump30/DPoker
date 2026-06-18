@@ -55,7 +55,7 @@ export class TableRegistry {
     };
     const state = reduce(null, event);
     this.tables.set(tableId, state);
-    this.deps.snapshotRepo.upsert(tableId, state);
+    this.deps.snapshotRepo.upsert(tableId, state).catch(console.error);
     this.buyInTracker.set(tableId, new Map());
     this.autoDealer.onStateChange(tableId, null, state);
     return state;
@@ -84,12 +84,12 @@ export class TableRegistry {
       const current = tracker.get(event.userId) ?? 0;
       tracker.set(event.userId, current + event.buyIn);
       this.buyInTracker.set(tableId, tracker);
-      this.deps.statsRepo.recordBuyIn(event.userId);
+      this.deps.statsRepo.recordBuyIn(event.userId).catch(console.error);
     }
 
     const next = reduce(prev, event);
     this.tables.set(tableId, next);
-    this.deps.snapshotRepo.upsert(tableId, next);
+    this.deps.snapshotRepo.upsert(tableId, next).catch(console.error);
     this.deps.waitPool.notify(tableId);
 
     // Hand just ended — record stats
@@ -116,7 +116,7 @@ export class TableRegistry {
   remove(tableId: string): void {
     this.tables.delete(tableId);
     this.buyInTracker.delete(tableId);
-    this.deps.snapshotRepo.remove(tableId);
+    this.deps.snapshotRepo.remove(tableId).catch(console.error);
     this.deps.waitPool.cleanup(tableId);
     this.autoDealer.clearTimers(tableId);
   }
@@ -147,7 +147,7 @@ export class TableRegistry {
         won,
         profitDelta,
         potSize: potTotal,
-      });
+      }).catch(console.error);
     }
   }
 
@@ -160,13 +160,13 @@ export class TableRegistry {
         seat.stack = state.config.minBuyIn;
         const current = tracker.get(seat.userId) ?? 0;
         tracker.set(seat.userId, current + state.config.minBuyIn);
-        this.deps.statsRepo.recordBuyIn(seat.userId);
+        this.deps.statsRepo.recordBuyIn(seat.userId).catch(console.error);
         rebuyed = true;
       }
     }
     // Re-persist after rebuy
     if (rebuyed) {
-      this.deps.snapshotRepo.upsert(tableId, state);
+      this.deps.snapshotRepo.upsert(tableId, state).catch(console.error);
     }
   }
 }

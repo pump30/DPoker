@@ -1,0 +1,15 @@
+---
+applications:
+  - name: dpoker
+    memory: 256M
+    disk_quota: 512M
+    instances: 1
+    buildpacks:
+      - nodejs_buildpack
+    command: node dist/server/index.js
+    env:
+      NODE_ENV: production
+    services:
+      - dpoker-pg
+    health-check-type: http
+    health-check-http-endpoint: /health

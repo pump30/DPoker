@@ -7,7 +7,8 @@ import { InviteRepo } from '@server/store/invite.repo.js';
 const authConfig = { jwtSecret: 'test-secret-aaaaaaaa', jwtExpiresInSec: 60 };
 
 async function registerUser(app: ReturnType<typeof createApp>, db: any) {
-  const inv = new InviteRepo(db).create(null);
+  const invites = new InviteRepo(db);
+  const inv = await invites.create(null);
   const res = await request(app).post('/api/auth/register').send({
     username: 'alice',
     password: 'hunter22',
