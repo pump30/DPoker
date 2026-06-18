@@ -1,14 +1,10 @@
 node_modules/
-src/
 .git/
 .env
 *.db
 tests/
 docs/
 .claude/
-tsconfig*.json
-vite.config.ts
-vitest.config.ts
 Dockerfile
 docker-compose.yml
 .dockerignore

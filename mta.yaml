@@ -1,0 +1,35 @@
+_schema-version: "3.1"
+ID: dpoker
+version: 0.1.0
+description: DPoker - Private Poker Platform
+
+modules:
+  - name: dpoker-srv
+    type: nodejs
+    path: .
+    parameters:
+      memory: 256M
+      disk-quota: 512M
+      health-check-type: http
+      health-check-http-endpoint: /health
+      command: node dist/server/index.js
+    properties:
+      NODE_ENV: production
+      DB_PATH: ./data/dpoker.db
+    build-parameters:
+      builder: npm
+      build-result: .
+      ignore:
+        - "tests/"
+        - "docs/"
+        - ".git/"
+        - ".env"
+        - ".claude/"
+        - "Dockerfile"
+        - "docker-compose.yml"
+        - "src/"
+        - "tsconfig*.json"
+        - "vite.config.ts"
+        - "vitest.config.ts"
+        - "mta_archives/"
+        - ".DPoker_mta_build_tmp/"
