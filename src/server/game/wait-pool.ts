@@ -6,7 +6,7 @@ type Waiter = {
 export class WaitPool {
   private pool = new Map<string, Waiter[]>();
 
-  wait(tableId: string, playerId: string, timeoutMs: number): Promise<'ready' | 'timeout'> {
+  wait(tableId: string, _playerId: string, timeoutMs: number): Promise<'ready' | 'timeout'> {
     return new Promise<'ready' | 'timeout'>((resolve) => {
       const waiter: Waiter = {
         resolve,

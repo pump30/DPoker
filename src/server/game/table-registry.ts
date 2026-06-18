@@ -130,7 +130,7 @@ export class TableRegistry {
     this.autoDealer.destroy();
   }
 
-  private recordHandStats(tableId: string, prev: TableState, next: TableState): void {
+  private recordHandStats(_tableId: string, prev: TableState, next: TableState): void {
     const potTotal = prev.hand!.pots?.reduce((s, p) => s + p.amount, 0) ?? 0;
 
     for (const seat of prev.seats) {

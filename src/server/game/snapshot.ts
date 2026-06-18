@@ -30,7 +30,7 @@ export class SnapshotRepo {
   private loadActiveStmt: any;
   private removeStmt: any;
 
-  constructor(private db: DB) {
+  constructor(db: DB) {
     this.upsertStmt = db.prepare(
       `INSERT INTO table_snapshots (table_id, state_json, updated_at)
        VALUES (?, ?, ?)

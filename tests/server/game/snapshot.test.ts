@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { serialize, deserialize, SnapshotRepo } from '@server/game/snapshot.js';
-import { reduce, type TableEvent } from '@server/game/table-state.js';
+import { reduce } from '@server/game/table-state.js';
 import type { TableConfig } from '@shared/table-types.js';
 import { makeTestDb } from '../../helpers/test-db.js';
 

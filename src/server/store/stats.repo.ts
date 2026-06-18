@@ -16,7 +16,7 @@ export class StatsRepo {
   private upsertBuyInStmt: any;
   private upsertHandStmt: any;
 
-  constructor(private db: DB) {
+  constructor(db: DB) {
     this.getAllStmt = db.prepare(
       `SELECT player_id, hands_played, hands_won, total_profit, biggest_pot, buy_in_count, updated_at
        FROM player_stats ORDER BY total_profit DESC`
