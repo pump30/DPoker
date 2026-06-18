@@ -3,13 +3,16 @@ import type { TableState, SeatedPlayer } from '../../shared/table-types.js';
 import type { TableEvent } from './table-state.js';
 
 export type DispatchFn = (tableId: string, event: TableEvent) => TableState;
+export type RemoveFn = (tableId: string) => void;
 
 export class AutoDealer {
   private startTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private nextHandTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private actionTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private closedTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private emptyTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
-  constructor(private dispatch: DispatchFn) {}
+  constructor(private dispatch: DispatchFn, private removeFn?: RemoveFn) {}
 
   onStateChange(tableId: string, prev: TableState | null, next: TableState): void {
     // Auto-start: 2+ seated in lobby → start after 3s
@@ -42,9 +45,31 @@ export class AutoDealer {
       this.clearActionTimer(tableId);
     }
 
-    // Table closed — clear all
+    // Table closed — clear all and schedule removal after 30s
     if (next.status === 'closed') {
       this.clearTimers(tableId);
+      if (this.removeFn && !this.closedTimers.has(tableId)) {
+        this.closedTimers.set(tableId, setTimeout(() => {
+          this.closedTimers.delete(tableId);
+          this.removeFn!(tableId);
+        }, 30_000));
+      }
+    }
+
+    // Empty table — schedule closure after 5 minutes if still empty
+    if (next.status !== 'closed' && this.seatedCount(next) === 0) {
+      if (!this.emptyTimers.has(tableId)) {
+        this.emptyTimers.set(tableId, setTimeout(() => {
+          this.emptyTimers.delete(tableId);
+          try {
+            this.dispatch(tableId, { type: 'CLOSE_TABLE', hostId: '__dealer__', nowMs: Date.now() });
+          } catch { /* table might already be closed/removed */ }
+        }, 5 * 60_000));
+      }
+    } else if (this.seatedCount(next) > 0 && this.emptyTimers.has(tableId)) {
+      // Players joined — cancel empty timer
+      clearTimeout(this.emptyTimers.get(tableId)!);
+      this.emptyTimers.delete(tableId);
     }
   }
 
@@ -66,6 +91,10 @@ export class AutoDealer {
       clearTimeout(this.nextHandTimers.get(tableId)!);
       this.nextHandTimers.delete(tableId);
     }
+    if (this.emptyTimers.has(tableId)) {
+      clearTimeout(this.emptyTimers.get(tableId)!);
+      this.emptyTimers.delete(tableId);
+    }
     this.clearActionTimer(tableId);
   }
 
@@ -73,9 +102,13 @@ export class AutoDealer {
     for (const t of this.startTimers.values()) clearTimeout(t);
     for (const t of this.nextHandTimers.values()) clearTimeout(t);
     for (const t of this.actionTimers.values()) clearTimeout(t);
+    for (const t of this.closedTimers.values()) clearTimeout(t);
+    for (const t of this.emptyTimers.values()) clearTimeout(t);
     this.startTimers.clear();
     this.nextHandTimers.clear();
     this.actionTimers.clear();
+    this.closedTimers.clear();
+    this.emptyTimers.clear();
   }
 
   private startGame(tableId: string): void {

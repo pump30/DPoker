@@ -115,12 +115,17 @@ export function tableRoutes(registry: TableRegistry, waitPool: WaitPool): Router
       return res.json(formatActResponse(state, playerId, registry));
     }
 
+    // Track client disconnect
+    let aborted = false;
+    req.on('close', () => { aborted = true; });
+
     // Long-poll loop
     const deadline = Date.now() + timeout;
-    while (Date.now() < deadline) {
+    while (Date.now() < deadline && !aborted) {
       const remaining = deadline - Date.now();
       if (remaining <= 0) break;
       const result = await waitPool.wait(tableId, playerId, Math.min(remaining, 5000));
+      if (aborted) break;
       if (result === 'timeout') {
         // Check if overall deadline passed
         if (Date.now() >= deadline) break;
@@ -134,7 +139,7 @@ export function tableRoutes(registry: TableRegistry, waitPool: WaitPool): Router
         return res.json(formatActResponse(current, playerId, registry));
       }
     }
-    return res.status(204).end();
+    if (!aborted) return res.status(204).end();
   });
 
   // POST /api/tables/:id/act — submit action
@@ -197,14 +202,19 @@ function formatTableResponse(state: TableState, playerId: string, registry: Tabl
       actorId: state.hand.actorSeat !== null ? state.seats[state.hand.actorSeat]?.userId ?? null : null,
       actionDeadlineMs: state.hand.actionDeadlineMs,
     } : null,
-    seats: state.seats.map(s => s ? {
-      seat: s.seat,
-      playerId: s.userId,
-      stack: s.stack,
-      bet: s.bet,
-      folded: s.folded,
-      allIn: s.allIn,
-    } : null),
+    seats: state.seats.map(s => {
+      if (!s) return null;
+      const playerBuyIn = buyInTracker?.get(s.userId) ?? s.stack;
+      return {
+        seat: s.seat,
+        playerId: s.userId,
+        stack: s.stack,
+        bet: s.bet,
+        folded: s.folded,
+        allIn: s.allIn,
+        profit: s.stack - playerBuyIn,
+      };
+    }),
     myCards: myCards ?? undefined,
     myProfit: mySeat ? mySeat.stack - myBoughtIn : undefined,
   };
@@ -221,7 +231,13 @@ function formatActResponse(state: TableState, playerId: string, registry: TableR
       if (owed === 0) validActions.push('check');
       validActions.push('fold');
       if (owed > 0 && owed <= actor.stack) validActions.push('call');
-      if (actor.stack > 0) validActions.push('raise', 'all-in');
+      if (actor.stack > owed) {
+        const leftAfterCall = actor.stack - owed;
+        if (leftAfterCall >= (state.hand.minRaise ?? state.hand.currentBet)) {
+          validActions.push('raise');
+        }
+      }
+      if (actor.stack > 0) validActions.push('all-in');
     }
   }
   return { ...base, validActions };

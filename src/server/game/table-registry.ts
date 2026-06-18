@@ -35,7 +35,10 @@ export class TableRegistry {
   private buyInTracker = new Map<string, Map<string, number>>();
 
   constructor(private deps: RegistryDeps) {
-    this.autoDealer = new AutoDealer((tableId, event) => this.dispatch(tableId, event));
+    this.autoDealer = new AutoDealer(
+      (tableId, event) => this.dispatch(tableId, event),
+      (tableId) => this.remove(tableId),
+    );
   }
 
   create(config: Partial<TableConfig>, hostId: string): TableState {
