@@ -26,25 +26,36 @@ export function deserialize(json: string): TableState {
 }
 
 export class SnapshotRepo {
-  constructor(private db: DB) {}
+  private upsertStmt: any;
+  private loadActiveStmt: any;
+  private removeStmt: any;
 
-  async upsert(tableId: string, state: TableState): Promise<void> {
-    await this.db.query(
+  constructor(db: DB) {
+    this.upsertStmt = db.prepare(
       `INSERT INTO table_snapshots (table_id, state_json, updated_at)
-       VALUES ($1, $2, $3)
-       ON CONFLICT(table_id) DO UPDATE SET state_json = EXCLUDED.state_json, updated_at = EXCLUDED.updated_at`,
-      [tableId, serialize(state), Date.now()],
+       VALUES (?, ?, ?)
+       ON CONFLICT(table_id) DO UPDATE SET state_json = excluded.state_json, updated_at = excluded.updated_at`
+    );
+    this.loadActiveStmt = db.prepare(
+      `SELECT table_id, state_json FROM table_snapshots`
+    );
+    this.removeStmt = db.prepare(
+      `DELETE FROM table_snapshots WHERE table_id = ?`
     );
   }
 
-  async loadActive(): Promise<Array<{ tableId: string; state: TableState }>> {
-    const { rows } = await this.db.query('SELECT table_id, state_json FROM table_snapshots');
-    return rows
-      .map((r: any) => ({ tableId: r.table_id, state: deserialize(r.state_json) }))
-      .filter((r: any) => r.state.status !== 'closed');
+  upsert(tableId: string, state: TableState): void {
+    this.upsertStmt.run(tableId, serialize(state), Date.now());
   }
 
-  async remove(tableId: string): Promise<void> {
-    await this.db.query('DELETE FROM table_snapshots WHERE table_id = $1', [tableId]);
+  loadActive(): Array<{ tableId: string; state: TableState }> {
+    const rows = this.loadActiveStmt.all() as Array<{ table_id: string; state_json: string }>;
+    return rows
+      .map(r => ({ tableId: r.table_id, state: deserialize(r.state_json) }))
+      .filter(r => r.state.status !== 'closed');
+  }
+
+  remove(tableId: string): void {
+    this.removeStmt.run(tableId);
   }
 }

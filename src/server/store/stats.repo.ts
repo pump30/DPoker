@@ -11,63 +11,74 @@ export type PlayerStats = {
 };
 
 export class StatsRepo {
-  constructor(private db: DB) {}
+  private getAllStmt: any;
+  private getByPlayerStmt: any;
+  private upsertBuyInStmt: any;
+  private upsertHandStmt: any;
 
-  async getAll(): Promise<PlayerStats[]> {
-    const { rows } = await this.db.query(
+  constructor(db: DB) {
+    this.getAllStmt = db.prepare(
       `SELECT player_id, hands_played, hands_won, total_profit, biggest_pot, buy_in_count, updated_at
-       FROM player_stats ORDER BY total_profit DESC`,
+       FROM player_stats ORDER BY total_profit DESC`
     );
-    return rows.map(this.rowToStats);
+    this.getByPlayerStmt = db.prepare(
+      `SELECT player_id, hands_played, hands_won, total_profit, biggest_pot, buy_in_count, updated_at
+       FROM player_stats WHERE player_id = ?`
+    );
+    this.upsertBuyInStmt = db.prepare(
+      `INSERT INTO player_stats (player_id, hands_played, hands_won, total_profit, biggest_pot, buy_in_count, updated_at)
+       VALUES (?, 0, 0, 0, 0, 1, ?)
+       ON CONFLICT(player_id) DO UPDATE SET buy_in_count = buy_in_count + 1, updated_at = excluded.updated_at`
+    );
+    this.upsertHandStmt = db.prepare(
+      `INSERT INTO player_stats (player_id, hands_played, hands_won, total_profit, biggest_pot, buy_in_count, updated_at)
+       VALUES (?, 1, ?, ?, ?, 0, ?)
+       ON CONFLICT(player_id) DO UPDATE SET
+         hands_played = hands_played + 1,
+         hands_won = hands_won + excluded.hands_won,
+         total_profit = total_profit + excluded.total_profit,
+         biggest_pot = MAX(biggest_pot, excluded.biggest_pot),
+         updated_at = excluded.updated_at`
+    );
   }
 
-  async getByPlayer(playerId: string): Promise<PlayerStats | null> {
-    const { rows } = await this.db.query(
-      `SELECT player_id, hands_played, hands_won, total_profit, biggest_pot, buy_in_count, updated_at
-       FROM player_stats WHERE player_id = $1`,
-      [playerId],
-    );
-    const row = rows[0];
+  getAll(): PlayerStats[] {
+    return (this.getAllStmt.all() as any[]).map(this.rowToStats);
+  }
+
+  getByPlayer(playerId: string): PlayerStats | null {
+    const row = this.getByPlayerStmt.get(playerId) as any;
     return row ? this.rowToStats(row) : null;
   }
 
-  async recordBuyIn(playerId: string): Promise<void> {
-    await this.db.query(
-      `INSERT INTO player_stats (player_id, hands_played, hands_won, total_profit, biggest_pot, buy_in_count, updated_at)
-       VALUES ($1, 0, 0, 0, 0, 1, $2)
-       ON CONFLICT(player_id) DO UPDATE SET buy_in_count = player_stats.buy_in_count + 1, updated_at = EXCLUDED.updated_at`,
-      [playerId, Date.now()],
-    );
+  recordBuyIn(playerId: string): void {
+    this.upsertBuyInStmt.run(playerId, Date.now());
   }
 
-  async recordHandResult(params: {
+  recordHandResult(params: {
     playerId: string;
     won: boolean;
     profitDelta: number;
     potSize: number;
-  }): Promise<void> {
-    await this.db.query(
-      `INSERT INTO player_stats (player_id, hands_played, hands_won, total_profit, biggest_pot, buy_in_count, updated_at)
-       VALUES ($1, 1, $2, $3, $4, 0, $5)
-       ON CONFLICT(player_id) DO UPDATE SET
-         hands_played = player_stats.hands_played + 1,
-         hands_won = player_stats.hands_won + EXCLUDED.hands_won,
-         total_profit = player_stats.total_profit + EXCLUDED.total_profit,
-         biggest_pot = GREATEST(player_stats.biggest_pot, EXCLUDED.biggest_pot),
-         updated_at = EXCLUDED.updated_at`,
-      [params.playerId, params.won ? 1 : 0, params.profitDelta, params.potSize, Date.now()],
+  }): void {
+    this.upsertHandStmt.run(
+      params.playerId,
+      params.won ? 1 : 0,
+      params.profitDelta,
+      params.potSize,
+      Date.now(),
     );
   }
 
   private rowToStats(row: any): PlayerStats {
     return {
       playerId: row.player_id,
-      handsPlayed: Number(row.hands_played),
-      handsWon: Number(row.hands_won),
-      totalProfit: Number(row.total_profit),
-      biggestPot: Number(row.biggest_pot),
-      buyInCount: Number(row.buy_in_count),
-      updatedAt: Number(row.updated_at),
+      handsPlayed: row.hands_played,
+      handsWon: row.hands_won,
+      totalProfit: row.total_profit,
+      biggestPot: row.biggest_pot,
+      buyInCount: row.buy_in_count,
+      updatedAt: row.updated_at,
     };
   }
 }

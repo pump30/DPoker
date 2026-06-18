@@ -16,7 +16,7 @@ const RegisterSchema = z.object({
 function isUniqueConstraintError(err: unknown): boolean {
   if (typeof err !== 'object' || err === null) return false;
   const code = (err as { code?: unknown }).code;
-  return code === '23505'; // PostgreSQL unique_violation
+  return code === 'SQLITE_CONSTRAINT_UNIQUE';
 }
 
 export function authRoutes(db: DB, authConfig: AuthConfig): Router {
@@ -33,44 +33,34 @@ export function authRoutes(db: DB, authConfig: AuthConfig): Router {
     const { username, password, displayName, inviteCode } = parsed.data;
 
     // Fail fast on invalid invite (cheap lookup, before hashing)
-    const invite = await invites.findByCode(inviteCode);
+    const invite = invites.findByCode(inviteCode);
     if (!invite || invite.usedBy !== null) {
       const err: ErrorResponse = { error: 'invalid_invite' };
       return res.status(403).json(err);
     }
 
     // Pre-check duplicate username (cheap)
-    if (await users.findByUsername(username)) {
+    if (users.findByUsername(username)) {
       const err: ErrorResponse = { error: 'username_taken' };
       return res.status(409).json(err);
     }
 
     const passwordHash = await hashPassword(password);
 
-    // Atomic: create user + claim invite using PG transaction
+    // Atomic: create user + claim invite. If either fails, both roll back.
     let user;
-    const client = await db.connect();
     try {
-      await client.query('BEGIN');
-      const id = (await import('node:crypto')).randomUUID();
-      const createdAt = Date.now();
-      await client.query(
-        `INSERT INTO users (id, username, password_hash, display_name, created_at)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [id, username, passwordHash, displayName, createdAt],
-      );
-      const claimResult = await client.query(
-        `UPDATE invites SET used_by = $1, used_at = $2
-         WHERE code = $3 AND used_by IS NULL`,
-        [id, Date.now(), inviteCode],
-      );
-      if (claimResult.rowCount !== 1) {
-        throw new InviteRaceError();
-      }
-      await client.query('COMMIT');
-      user = { id, username, passwordHash, displayName, createdAt };
+      user = db.transaction(() => {
+        const created = users.create({ username, passwordHash, displayName });
+        const claimed = invites.claim(inviteCode, created.id);
+        if (!claimed) {
+          // Race: invite was claimed by a concurrent request between our findByCode and now.
+          // Throw to roll back the user insert.
+          throw new InviteRaceError();
+        }
+        return created;
+      })();
     } catch (e) {
-      await client.query('ROLLBACK');
       if (e instanceof InviteRaceError) {
         const err: ErrorResponse = { error: 'invalid_invite' };
         return res.status(403).json(err);
@@ -83,8 +73,6 @@ export function authRoutes(db: DB, authConfig: AuthConfig): Router {
       console.error('register failed', e);
       const err: ErrorResponse = { error: 'internal_error' };
       return res.status(500).json(err);
-    } finally {
-      client.release();
     }
 
     const token = signToken({ userId: user.id }, authConfig);
@@ -107,7 +95,7 @@ export function authRoutes(db: DB, authConfig: AuthConfig): Router {
       return res.status(400).json(err);
     }
     const { username, password } = parsed.data;
-    const user = await users.findByUsername(username);
+    const user = users.findByUsername(username);
     if (!user) {
       const err: ErrorResponse = { error: 'invalid_credentials' };
       return res.status(401).json(err);

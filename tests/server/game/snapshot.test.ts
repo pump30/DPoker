@@ -53,34 +53,34 @@ describe('snapshot — serialize/deserialize', () => {
 });
 
 describe('SnapshotRepo', () => {
-  it('upserts and loads a snapshot', async () => {
+  it('upserts and loads a snapshot', () => {
     const db = makeTestDb();
     const repo = new SnapshotRepo(db);
     const state = createTable();
-    await repo.upsert('t1', state);
-    const loaded = await repo.loadActive();
+    repo.upsert('t1', state);
+    const loaded = repo.loadActive();
     expect(loaded).toHaveLength(1);
     expect(loaded[0].tableId).toBe('t1');
     expect(loaded[0].state.id).toBe('t1');
   });
 
-  it('filters out closed tables on load', async () => {
+  it('filters out closed tables on load', () => {
     const db = makeTestDb();
     const repo = new SnapshotRepo(db);
     const state = createTable();
     const closed = { ...state, status: 'closed' as const, closedAt: 9999 };
-    await repo.upsert('t1', state);
-    await repo.upsert('t2', closed);
-    const loaded = await repo.loadActive();
+    repo.upsert('t1', state);
+    repo.upsert('t2', closed);
+    const loaded = repo.loadActive();
     expect(loaded).toHaveLength(1);
     expect(loaded[0].tableId).toBe('t1');
   });
 
-  it('removes a snapshot', async () => {
+  it('removes a snapshot', () => {
     const db = makeTestDb();
     const repo = new SnapshotRepo(db);
-    await repo.upsert('t1', createTable());
-    await repo.remove('t1');
-    expect(await repo.loadActive()).toHaveLength(0);
+    repo.upsert('t1', createTable());
+    repo.remove('t1');
+    expect(repo.loadActive()).toHaveLength(0);
   });
 });

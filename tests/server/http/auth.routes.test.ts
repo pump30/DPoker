@@ -6,10 +6,10 @@ import { InviteRepo } from '@server/store/invite.repo.js';
 
 const authConfig = { jwtSecret: 'test-secret-aaaaaaaa', jwtExpiresInSec: 60 };
 
-async function makeDeps(): Promise<{ deps: AppDeps; inviteCode: string }> {
+function makeDeps(): { deps: AppDeps; inviteCode: string } {
   const db = makeTestDb();
   const invites = new InviteRepo(db);
-  const inv = await invites.create(null);
+  const inv = invites.create(null);
   return { deps: { db, authConfig }, inviteCode: inv.code };
 }
 
@@ -17,8 +17,8 @@ describe('POST /api/auth/register', () => {
   let deps: AppDeps;
   let inviteCode: string;
 
-  beforeEach(async () => {
-    const fresh = await makeDeps();
+  beforeEach(() => {
+    const fresh = makeDeps();
     deps = fresh.deps;
     inviteCode = fresh.inviteCode;
   });
@@ -65,7 +65,7 @@ describe('POST /api/auth/register', () => {
       .send({ username: 'alice', password: 'hunter22', displayName: 'A', inviteCode });
     // need a fresh invite for second attempt
     const invites = new InviteRepo(deps.db);
-    const inv2 = await invites.create(null);
+    const inv2 = invites.create(null);
     const res = await request(app)
       .post('/api/auth/register')
       .send({ username: 'alice', password: 'hunter22', displayName: 'A', inviteCode: inv2.code });
@@ -146,7 +146,7 @@ describe('POST /api/auth/login', () => {
   let inviteCode: string;
 
   beforeEach(async () => {
-    const fresh = await makeDeps();
+    const fresh = makeDeps();
     deps = fresh.deps;
     inviteCode = fresh.inviteCode;
     const app = createApp(deps);

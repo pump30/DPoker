@@ -9,7 +9,6 @@ applications:
     command: node dist/server/index.js
     env:
       NODE_ENV: production
-    services:
-      - dpoker-pg
+      DB_PATH: ./data/dpoker.db
     health-check-type: http
     health-check-http-endpoint: /health

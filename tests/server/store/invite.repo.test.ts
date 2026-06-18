@@ -15,26 +15,26 @@ describe('InviteRepo', () => {
     userRepo = new UserRepo(db);
   });
 
-  it('creates an unused invite', async () => {
-    const inv = await inviteRepo.create(null);
+  it('creates an unused invite', () => {
+    const inv = inviteRepo.create(null);
     expect(inv.code).toMatch(/^[A-Z0-9]{8}$/);
     expect(inv.usedBy).toBeNull();
     expect(inv.usedAt).toBeNull();
   });
 
-  it('claim marks invite as used and is idempotent failure on second claim', async () => {
-    const user = await userRepo.create({ username: 'a', passwordHash: 'h', displayName: 'A' });
-    const inv = await inviteRepo.create(null);
-    const claimed = await inviteRepo.claim(inv.code, user.id);
+  it('claim marks invite as used and is idempotent failure on second claim', () => {
+    const user = userRepo.create({ username: 'a', passwordHash: 'h', displayName: 'A' });
+    const inv = inviteRepo.create(null);
+    const claimed = inviteRepo.claim(inv.code, user.id);
     expect(claimed).toBe(true);
-    expect((await inviteRepo.findByCode(inv.code))?.usedBy).toBe(user.id);
+    expect(inviteRepo.findByCode(inv.code)?.usedBy).toBe(user.id);
 
-    const user2 = await userRepo.create({ username: 'b', passwordHash: 'h', displayName: 'B' });
-    expect(await inviteRepo.claim(inv.code, user2.id)).toBe(false);
+    const user2 = userRepo.create({ username: 'b', passwordHash: 'h', displayName: 'B' });
+    expect(inviteRepo.claim(inv.code, user2.id)).toBe(false);
   });
 
-  it('claim returns false for missing code', async () => {
-    const user = await userRepo.create({ username: 'a', passwordHash: 'h', displayName: 'A' });
-    expect(await inviteRepo.claim('NOPE0000', user.id)).toBe(false);
+  it('claim returns false for missing code', () => {
+    const user = userRepo.create({ username: 'a', passwordHash: 'h', displayName: 'A' });
+    expect(inviteRepo.claim('NOPE0000', user.id)).toBe(false);
   });
 });

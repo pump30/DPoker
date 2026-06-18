@@ -1,17 +1,19 @@
+PRAGMA foreign_keys = ON;
+
 CREATE TABLE IF NOT EXISTS users (
   id            TEXT PRIMARY KEY,
   username      TEXT UNIQUE NOT NULL,
   password_hash TEXT NOT NULL,
   display_name  TEXT NOT NULL,
-  created_at    BIGINT NOT NULL
+  created_at    INTEGER NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS invites (
   code          TEXT PRIMARY KEY,
   created_by    TEXT,
   used_by       TEXT,
-  created_at    BIGINT NOT NULL,
-  used_at       BIGINT,
+  created_at    INTEGER NOT NULL,
+  used_at       INTEGER,
   FOREIGN KEY (created_by) REFERENCES users(id),
   FOREIGN KEY (used_by) REFERENCES users(id)
 );
@@ -19,7 +21,7 @@ CREATE TABLE IF NOT EXISTS invites (
 CREATE TABLE IF NOT EXISTS sessions (
   token         TEXT PRIMARY KEY,
   user_id       TEXT NOT NULL,
-  expires_at    BIGINT NOT NULL,
+  expires_at    INTEGER NOT NULL,
   FOREIGN KEY (user_id) REFERENCES users(id)
 );
 

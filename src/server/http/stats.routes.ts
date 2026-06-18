@@ -4,8 +4,8 @@ import type { StatsRepo } from '../store/stats.repo.js';
 export function statsRoutes(statsRepo: StatsRepo): Router {
   const router = Router();
 
-  router.get('/', async (_req, res) => {
-    const all = (await statsRepo.getAll()).map(s => ({
+  router.get('/', (_req, res) => {
+    const all = statsRepo.getAll().map(s => ({
       playerId: s.playerId,
       handsPlayed: s.handsPlayed,
       handsWon: s.handsWon,
@@ -17,8 +17,8 @@ export function statsRoutes(statsRepo: StatsRepo): Router {
     return res.json(all);
   });
 
-  router.get('/:playerId', async (req, res) => {
-    const stats = await statsRepo.getByPlayer(req.params.playerId);
+  router.get('/:playerId', (req, res) => {
+    const stats = statsRepo.getByPlayer(req.params.playerId);
     if (!stats) return res.status(404).json({ error: 'player_not_found' });
     return res.json({
       playerId: stats.playerId,

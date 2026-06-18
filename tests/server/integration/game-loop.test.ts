@@ -64,10 +64,8 @@ describe('Full game loop integration', () => {
     const afterFold = registry.get(tableId)!;
     expect(afterFold.hand).toBeNull();
 
-    // Stats should be recorded (wait for fire-and-forget)
-    vi.useRealTimers();
-    await new Promise(r => setTimeout(r, 50));
-    const stats = await statsRepo.getAll();
+    // Stats should be recorded
+    const stats = statsRepo.getAll();
     expect(stats.length).toBe(2);
     expect(stats.some(s => s.handsWon > 0)).toBe(true);
   });

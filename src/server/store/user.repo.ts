@@ -7,7 +7,7 @@ type Row = {
   username: string;
   password_hash: string;
   display_name: string;
-  created_at: string; // BIGINT comes as string from pg
+  created_at: number;
 };
 
 function rowToUser(row: Row): User {
@@ -16,21 +16,22 @@ function rowToUser(row: Row): User {
     username: row.username,
     passwordHash: row.password_hash,
     displayName: row.display_name,
-    createdAt: Number(row.created_at),
+    createdAt: row.created_at,
   };
 }
 
 export class UserRepo {
   constructor(private db: DB) {}
 
-  async create(input: CreateUserInput): Promise<User> {
+  create(input: CreateUserInput): User {
     const id = randomUUID();
     const createdAt = Date.now();
-    await this.db.query(
-      `INSERT INTO users (id, username, password_hash, display_name, created_at)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [id, input.username, input.passwordHash, input.displayName, createdAt],
-    );
+    this.db
+      .prepare(
+        `INSERT INTO users (id, username, password_hash, display_name, created_at)
+         VALUES (?, ?, ?, ?, ?)`,
+      )
+      .run(id, input.username, input.passwordHash, input.displayName, createdAt);
     return {
       id,
       username: input.username,
@@ -40,15 +41,15 @@ export class UserRepo {
     };
   }
 
-  async findByUsername(username: string): Promise<User | null> {
-    const { rows } = await this.db.query('SELECT * FROM users WHERE username = $1', [username]);
-    const row = rows[0] as Row | undefined;
+  findByUsername(username: string): User | null {
+    const row = this.db
+      .prepare('SELECT * FROM users WHERE username = ?')
+      .get(username) as Row | undefined;
     return row ? rowToUser(row) : null;
   }
 
-  async findById(id: string): Promise<User | null> {
-    const { rows } = await this.db.query('SELECT * FROM users WHERE id = $1', [id]);
-    const row = rows[0] as Row | undefined;
+  findById(id: string): User | null {
+    const row = this.db.prepare('SELECT * FROM users WHERE id = ?').get(id) as Row | undefined;
     return row ? rowToUser(row) : null;
   }
 }

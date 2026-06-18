@@ -31,7 +31,7 @@ describe('GET /api/stats', () => {
 
   it('returns stats after buy-in', async () => {
     const { app, statsRepo } = makeApp();
-    await statsRepo.recordBuyIn('alice');
+    statsRepo.recordBuyIn('alice');
     const res = await request(app).get('/api/stats');
     expect(res.status).toBe(200);
     expect(res.body).toHaveLength(1);
@@ -49,8 +49,8 @@ describe('GET /api/stats/:playerId', () => {
 
   it('returns player stats', async () => {
     const { app, statsRepo } = makeApp();
-    await statsRepo.recordBuyIn('bob');
-    await statsRepo.recordHandResult({ playerId: 'bob', won: true, profitDelta: 100, potSize: 200 });
+    statsRepo.recordBuyIn('bob');
+    statsRepo.recordHandResult({ playerId: 'bob', won: true, profitDelta: 100, potSize: 200 });
     const res = await request(app).get('/api/stats/bob');
     expect(res.status).toBe(200);
     expect(res.body.handsPlayed).toBe(1);

@@ -1,4 +1,4 @@
-import pg from 'pg';
+import Database from 'better-sqlite3';
 import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -6,52 +6,39 @@ import { fileURLToPath } from 'node:url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-export type DB = pg.Pool;
+export type DB = Database.Database;
 
-export async function openDb(connectionString: string): Promise<DB> {
-  const pool = new pg.Pool({
-    connectionString,
-    max: 5,
-    ssl: connectionString.includes('localhost') || connectionString.includes('127.0.0.1')
-      ? false
-      : { rejectUnauthorized: false },
-  });
-
-  // Test connection
-  const client = await pool.connect();
-  try {
-    await runMigrations(client);
-  } finally {
-    client.release();
-  }
-
-  return pool;
+export function openDb(filename: string): DB {
+  const db = new Database(filename);
+  db.pragma('journal_mode = WAL');
+  db.pragma('foreign_keys = ON');
+  runMigrations(db);
+  return db;
 }
 
-async function runMigrations(client: pg.PoolClient): Promise<void> {
-  await client.query(`CREATE TABLE IF NOT EXISTS _migrations (
+function runMigrations(db: DB): void {
+  db.exec(`CREATE TABLE IF NOT EXISTS _migrations (
     name TEXT PRIMARY KEY,
-    applied_at BIGINT NOT NULL
+    applied_at INTEGER NOT NULL
   )`);
-
-  const { rows } = await client.query('SELECT name FROM _migrations');
-  const applied = new Set(rows.map((r: any) => r.name as string));
-
+  const applied = new Set(
+    db.prepare('SELECT name FROM _migrations').all().map((r: any) => r.name as string),
+  );
   const migrationsDir = path.join(__dirname, 'migrations');
   const files = readdirSync(migrationsDir)
     .filter((f) => f.endsWith('.sql'))
     .sort();
-
+  const insert = db.prepare('INSERT INTO _migrations (name, applied_at) VALUES (?, ?)');
   for (const file of files) {
     if (applied.has(file)) continue;
     const sql = readFileSync(path.join(migrationsDir, file), 'utf8');
-    await client.query('BEGIN');
+    db.exec('BEGIN');
     try {
-      await client.query(sql);
-      await client.query('INSERT INTO _migrations (name, applied_at) VALUES ($1, $2)', [file, Date.now()]);
-      await client.query('COMMIT');
+      db.exec(sql);
+      insert.run(file, Date.now());
+      db.exec('COMMIT');
     } catch (err) {
-      try { await client.query('ROLLBACK'); } catch {}
+      try { db.exec('ROLLBACK'); } catch {}
       throw err;
     }
   }

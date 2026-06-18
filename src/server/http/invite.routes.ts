@@ -9,8 +9,8 @@ export function inviteRoutes(db: DB, authConfig: AuthConfig): Router {
   const router = Router();
   const invites = new InviteRepo(db);
 
-  router.post('/', requireAuth(authConfig), async (req, res) => {
-    const inv = await invites.create(req.userId ?? null);
+  router.post('/', requireAuth(authConfig), (req, res) => {
+    const inv = invites.create(req.userId ?? null);
     const response: CreateInviteResponse = { code: inv.code };
     res.status(201).json(response);
   });
