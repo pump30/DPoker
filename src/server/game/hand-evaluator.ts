@@ -1,4 +1,5 @@
-import { Hand } from 'pokersolver';
+import pokersolver from 'pokersolver';
+const { Hand } = pokersolver as any;
 import type { Card } from '../../shared/game-types.js';
 
 export type HandResult = {

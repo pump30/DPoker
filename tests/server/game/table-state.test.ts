@@ -217,3 +217,53 @@ describe('table-state — squid mode', () => {
 });
 
 void SEED2; // referenced for future hand-2 tests
+
+describe('table-state — folded player not assigned as actor on new street', () => {
+  const SEED = 'a'.repeat(64);
+
+  it('skips folded player when determining first-to-act on flop', () => {
+    // Set up a 3-player table where the postflop first-to-act (SB/first-after-button)
+    // has folded preflop. The next active player should become the actor.
+    const config = { ...baseConfig, maxSeats: 6, actionTimeoutSec: 30 };
+    let state = apply(null,
+      { type: 'CREATE_TABLE', tableId: 't1', shortCode: 'ABC', hostId: 'h', config, nowMs: 1 },
+      { type: 'SIT_DOWN', userId: 'alice', seat: 0, buyIn: 500, nowMs: 2 },
+      { type: 'SIT_DOWN', userId: 'bob', seat: 1, buyIn: 500, nowMs: 3 },
+      { type: 'SIT_DOWN', userId: 'charlie', seat: 2, buyIn: 500, nowMs: 4 },
+      { type: 'START_GAME', hostId: 'h', nowMs: 5 },
+      { type: 'BEGIN_HAND', serverSeed: SEED, nowMs: 6 },
+    );
+
+    // Find who the current actor is and play until we reach flop with a fold
+    // We'll have each player either fold or call to force progression to flop
+    const hand = state.hand!;
+    expect(hand.stage).toBe('preflop');
+    
+    // Get all seated players and figure out who acts
+    const actorSeat = hand.actorSeat!;
+    const actor = state.seats[actorSeat]!;
+    
+    // First actor folds
+    state = apply(state, { type: 'PLAYER_ACTION', userId: actor.userId, action: { type: 'fold' }, nowMs: 10 });
+    
+    // Next actors call (or check if nothing owed — e.g. BB option)
+    let safety = 10;
+    while (state.hand && state.hand.stage === 'preflop' && safety-- > 0) {
+      const nextActor = state.seats[state.hand.actorSeat!];
+      if (!nextActor) break;
+      const owed = state.hand.currentBet - (nextActor as any).bet;
+      const action = owed > 0 ? { type: 'call' as const } : { type: 'check' as const };
+      state = apply(state, { type: 'PLAYER_ACTION', userId: nextActor.userId, action, nowMs: 20 + safety });
+    }
+
+    // If we reached the flop, verify the actor is NOT folded
+    if (state.hand && state.hand.stage !== 'preflop') {
+      const flopActor = state.seats[state.hand.actorSeat!];
+      expect(flopActor).not.toBeNull();
+      // The actor on the new street should NOT be folded
+      const betting = (state as any)._betting;
+      const actorBet = betting.players.find((p: any) => p.id === flopActor!.userId);
+      expect(actorBet?.folded).toBe(false);
+    }
+  });
+});

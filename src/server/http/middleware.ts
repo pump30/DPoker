@@ -22,3 +22,14 @@ export function requireAuth(authConfig: AuthConfig): RequestHandler {
     next();
   };
 }
+
+export function openAuth(): RequestHandler {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const playerId = req.headers['x-player-id'] as string | undefined;
+    if (!playerId || playerId.trim().length === 0) {
+      return res.status(400).json({ error: 'X-Player-Id header required' });
+    }
+    req.userId = playerId.trim();
+    next();
+  };
+}
