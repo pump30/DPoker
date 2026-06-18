@@ -63,6 +63,8 @@ All table endpoints require `X-Player-Id` header.
 | `POST` | `/api/tables/:id/leave` | Stand up / leave | — |
 | `GET` | `/api/tables/:id/act` | Long-poll: block until it's your turn | query: `?timeout=10000` |
 | `POST` | `/api/tables/:id/act` | Submit action | `{type: 'fold'\|'check'\|'call'\|'raise'\|'all-in', amount?}` |
+| `GET` | `/api/stats` | Leaderboard (all players) | — |
+| `GET` | `/api/stats/:playerId` | Single player stats | — |
 
 ### 4.1 Identity
 
@@ -246,7 +248,10 @@ src/server/
 │   ├── wait-pool.ts           # Long-poll wait pool
 │   └── snapshot.ts            # Serialize/deserialize + DB operations
 ├── http/
-│   └── table.routes.ts        # 7 REST endpoints
+│   ├── table.routes.ts        # 7 REST endpoints (tables + actions)
+│   └── stats.routes.ts        # 2 REST endpoints (leaderboard)
+├── store/
+│   └── stats.repo.ts          # PlayerStats DB operations
 └── index.ts                   # Modified: mount routes + create registry
 ```
 
@@ -262,6 +267,7 @@ src/server/
 
 ```
 src/server/store/migrations/003_table_snapshots.sql
+src/server/store/migrations/004_player_stats.sql
 ```
 
 ## 10. Agent Usage Example
@@ -309,7 +315,105 @@ while True:
 | `play_action` | `POST /api/tables/:id/act` |
 | `leave_table` | `POST /api/tables/:id/leave` |
 
-## 11. Out of Scope
+## 11. Chip Management
+
+### 11.1 Buy-in Rules
+
+- `buyIn` on `/sit` must be within `[minBuyIn, maxBuyIn]`
+- No cap on stack growth — winnings accumulate freely
+
+### 11.2 Auto-Rebuy on Bust
+
+When a hand ends and a player's `stack === 0`, AutoDealer automatically rebuys
+them for `minBuyIn` before the next hand begins. There is no "bankruptcy" — AI
+agents play indefinitely.
+
+Implementation: after `finalizeHand`, AutoDealer checks all seated players. Any
+with `stack === 0` get a synthetic chip addition (direct state mutation via a
+new internal event or direct stack set before `BEGIN_HAND`).
+
+### 11.3 Profit Tracking
+
+Each player's cumulative profit/loss is tracked:
+
+```
+profit = current_stack - total_bought_in
+```
+
+Where `total_bought_in` = initial buyIn + (number of rebuys × minBuyIn).
+
+This is stored in a separate in-memory + persisted structure (not inside
+TableState, to avoid polluting the game engine).
+
+## 12. Player Stats & Leaderboard API
+
+### 12.1 Stats Storage
+
+```sql
+CREATE TABLE IF NOT EXISTS player_stats (
+  player_id    TEXT PRIMARY KEY,
+  hands_played INTEGER NOT NULL DEFAULT 0,
+  hands_won    INTEGER NOT NULL DEFAULT 0,
+  total_profit INTEGER NOT NULL DEFAULT 0,   -- cumulative (can be negative)
+  biggest_pot  INTEGER NOT NULL DEFAULT 0,
+  buy_in_count INTEGER NOT NULL DEFAULT 0,   -- how many times bought in
+  updated_at   INTEGER NOT NULL
+);
+```
+
+Updated at the end of each hand by AutoDealer (after pot distribution).
+
+### 12.2 API Endpoints
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET` | `/api/stats` | Leaderboard: all players sorted by profit |
+| `GET` | `/api/stats/:playerId` | Single player stats |
+
+### 12.3 Response Format
+
+`GET /api/stats`:
+
+```json
+[
+  {
+    "playerId": "agent-alice",
+    "handsPlayed": 142,
+    "handsWon": 38,
+    "winRate": 0.268,
+    "totalProfit": 4350,
+    "biggestPot": 1200,
+    "buyInCount": 3
+  },
+  {
+    "playerId": "agent-bob",
+    "handsPlayed": 142,
+    "handsWon": 31,
+    "winRate": 0.218,
+    "totalProfit": -1200,
+    "biggestPot": 800,
+    "buyInCount": 5
+  }
+]
+```
+
+### 12.4 Per-Table Profit in State Response
+
+The `GET /tables/:id` and `GET /act` responses include a per-player profit
+field within the table context:
+
+```json
+{
+  "seats": [
+    {"seat": 0, "playerId": "agent-alice", "stack": 1350, "profit": 350, ...}
+  ],
+  "myProfit": 350
+}
+```
+
+`profit` = `stack - totalBoughtIn` for this table session.
+
+## 13. Out of Scope
 
 - Socket.IO / WebSocket (future, for human UI clients)
 - Event sourcing / replay (snapshot is sufficient for now)
