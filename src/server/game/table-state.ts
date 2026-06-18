@@ -558,11 +558,33 @@ function openNextStreet(
   ];
 
   // First-to-act post-flop: see seat.firstToAct
-  const firstActSeat = firstToAct(state.seats, state.hand!.buttonSeat, (state as any)._bbSeat, 'postflop', state.hand!.handNo);
+  let firstActSeat = firstToAct(state.seats, state.hand!.buttonSeat, (state as any)._bbSeat, 'postflop', state.hand!.handNo);
   if (firstActSeat === null) {
     // Shouldn't happen — fallback to nobody.
     return state;
   }
+
+  // The seat from firstToAct is based on positional eligibility but doesn't
+  // account for players who folded or went all-in during this hand. Walk
+  // clockwise from firstActSeat to find the first player who can still act.
+  const n = state.seats.length;
+  let resolvedActSeat: number | null = null;
+  for (let off = 0; off < n; off++) {
+    const seat = (firstActSeat + off) % n;
+    const p = state.seats[seat];
+    const bp = clearedPlayers.find(cp => cp.id === p?.userId);
+    if (p && bp && !bp.folded && !bp.allIn) {
+      resolvedActSeat = seat;
+      break;
+    }
+  }
+
+  if (resolvedActSeat === null) {
+    // All players are folded or all-in — skip to showdown/all-in vote
+    // This shouldn't normally happen here (checked earlier), but guard.
+    return state;
+  }
+  firstActSeat = resolvedActSeat;
   const firstActor = state.seats[firstActSeat]!.userId;
 
   const newBetting = startNewStreet(
