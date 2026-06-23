@@ -87,13 +87,14 @@ export function tableRoutes(registry: TableRegistry, waitPool: WaitPool): Router
     }
   });
 
-  // DELETE /api/tables/:id — close table (host only)
+  // DELETE /api/tables/:id — close table (host only, or force=true to skip check)
   router.delete('/:id', (req, res) => {
     const state = registry.get(req.params.id);
     if (!state) return res.status(404).json({ error: 'table_not_found' });
+    const hostId = req.query.force === 'true' ? state.hostId : req.userId!;
     try {
       const next = registry.dispatch(req.params.id, {
-        type: 'CLOSE_TABLE', hostId: req.userId!, nowMs: Date.now(),
+        type: 'CLOSE_TABLE', hostId, nowMs: Date.now(),
       });
       return res.json({ tableId: next.id, status: next.status });
     } catch (e: any) {

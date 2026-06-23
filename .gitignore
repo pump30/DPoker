@@ -9,3 +9,5 @@ data/*.db-*
 .vite/
 coverage/
 .agents/
+mta_archives/
+.DPoker_mta_build_tmp/
