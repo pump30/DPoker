@@ -190,6 +190,9 @@ function sitDown(state: TableState, event: Extract<TableEvent, { type: 'SIT_DOWN
   if (state.seats[event.seat]) {
     throw new Error(`seat ${event.seat} already taken`);
   }
+  if (state.seats.some(s => s?.userId === event.userId)) {
+    throw new Error(`player ${event.userId} already seated`);
+  }
   if (event.buyIn < state.config.minBuyIn || event.buyIn > state.config.maxBuyIn) {
     throw new Error(`buy-in out of range`);
   }
