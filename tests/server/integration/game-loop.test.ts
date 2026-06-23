@@ -117,4 +117,42 @@ describe('Full game loop integration', () => {
     // Simulate bust: set alice stack to 0 manually on the state, then trigger hand end
     // This is complex to simulate via API — the auto-rebuy test in task 5 covers the unit logic
   });
+
+  it('next hand auto-deals after previous hand ends', async () => {
+    const { app, registry } = makeApp();
+    const alice = { 'X-Player-Id': 'alice' };
+    const bob = { 'X-Player-Id': 'bob' };
+
+    const createRes = await request(app).post('/api/tables').set(alice)
+      .send({ name: 'AutoDeal', smallBlind: 5, bigBlind: 10, minBuyIn: 100, maxBuyIn: 1000, maxSeats: 2, actionTimeoutSec: 10 });
+    const tableId = createRes.body.tableId;
+
+    await request(app).post(`/api/tables/${tableId}/sit`).set(alice).send({ buyIn: 500 });
+    await request(app).post(`/api/tables/${tableId}/sit`).set(bob).send({ buyIn: 500 });
+    vi.advanceTimersByTime(3100); // auto-start + begin hand
+
+    // Hand 1 should be running
+    const state1 = registry.get(tableId)!;
+    expect(state1.hand).not.toBeNull();
+    expect(state1.hand!.handNo).toBe(1);
+
+    // Fold to end the hand
+    const actorSeat = state1.hand!.actorSeat!;
+    const actorId = state1.seats[actorSeat]!.userId;
+    await request(app).post(`/api/tables/${tableId}/act`).set({ 'X-Player-Id': actorId })
+      .send({ type: 'fold' });
+
+    // Hand ended
+    const between = registry.get(tableId)!;
+    expect(between.hand).toBeNull();
+    expect(between.status).toBe('running');
+
+    // Advance 2.1s for next hand to auto-deal
+    vi.advanceTimersByTime(2100);
+
+    // Hand 2 should now be running
+    const state2 = registry.get(tableId)!;
+    expect(state2.hand).not.toBeNull();
+    expect(state2.hand!.handNo).toBe(2);
+  });
 });

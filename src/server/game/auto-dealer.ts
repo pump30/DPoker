@@ -38,6 +38,12 @@ export class AutoDealer {
       this.scheduleNextHand(tableId);
     }
 
+    // Fallback: if running with no hand and 2+ players but no timer, schedule next hand
+    if (!prev?.hand && !next.hand && next.status === 'running' && this.seatedCount(next) >= 2
+        && !this.nextHandTimers.has(tableId)) {
+      this.scheduleNextHand(tableId);
+    }
+
     // Action timeout: new actor
     if (next.hand?.actorSeat !== null && next.hand?.actorSeat !== undefined) {
       const prevActor = prev?.hand?.actorSeat;
@@ -148,7 +154,9 @@ export class AutoDealer {
           serverSeed: crypto.randomBytes(32).toString('hex'),
           nowMs: Date.now(),
         });
-      } catch { /* not enough players, etc */ }
+      } catch (e) {
+        console.error(`[AutoDealer] BEGIN_HAND failed for ${tableId}:`, (e as Error).message);
+      }
     }, 2000));
   }
 
