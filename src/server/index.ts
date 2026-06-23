@@ -5,10 +5,19 @@ import { createApp } from './app.js';
 import { WaitPool } from './game/wait-pool.js';
 import { SnapshotRepo } from './game/snapshot.js';
 import { StatsRepo } from './store/stats.repo.js';
+import { InviteRepo } from './store/invite.repo.js';
 import { TableRegistry } from './game/table-registry.js';
 
 const config = loadConfig();
 const db = openDb(config.dbPath);
+
+// Seed: ensure at least one invite code exists for first registration
+const invites = new InviteRepo(db);
+const existingInvites = db.prepare('SELECT COUNT(*) as c FROM invites WHERE used_by IS NULL').get() as { c: number };
+if (existingInvites.c === 0) {
+  const seed = invites.create(null);
+  console.log(`Seed invite code created: ${seed.code}`);
+}
 
 const waitPool = new WaitPool();
 const snapshotRepo = new SnapshotRepo(db);

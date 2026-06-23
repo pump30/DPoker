@@ -16,6 +16,7 @@ modules:
     properties:
       NODE_ENV: production
       DB_PATH: ./data/dpoker.db
+      JWT_SECRET: a]3f8b2e7d1c9a4f6e0b5d8c2a7f1e3d9b4c6a0e2f8d1b5c7a3e9f0d4b6c8a2
     build-parameters:
       builder: npm
       build-result: .
