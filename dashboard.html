@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DPoker Dashboard</title>
+<style>
+:root {
+  --bg: #0f1923;
+  --card-bg: #1a2634;
+  --card-border: #2a3a4a;
+  --text: #e0e6ed;
+  --text-dim: #7a8a9a;
+  --green: #22c55e;
+  --red: #ef4444;
+  --yellow: #eab308;
+  --blue: #3b82f6;
+  --badge-running: #16a34a;
+  --badge-lobby: #ca8a04;
+  --badge-closed: #6b7280;
+  --actor-dot: #eab308;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  padding: 16px;
+}
+.config-bar {
+  display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+  padding: 12px 16px; background: var(--card-bg); border-radius: 8px;
+  margin-bottom: 20px; border: 1px solid var(--card-border);
+}
+.config-bar label { font-size: 12px; color: var(--text-dim); }
+.config-bar input {
+  background: var(--bg); border: 1px solid var(--card-border);
+  color: var(--text); padding: 6px 10px; border-radius: 4px; font-size: 13px;
+}
+.config-bar input.url { width: 420px; }
+.config-bar input.short { width: 120px; }
+.config-bar .status { margin-left: auto; font-size: 12px; color: var(--text-dim); }
+.config-bar .status.ok { color: var(--green); }
+.config-bar .status.err { color: var(--red); }
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(480px, 1fr));
+  gap: 16px;
+}
+.table-card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  padding: 16px;
+}
+.table-header {
+  display: flex; align-items: center; gap: 12px; margin-bottom: 10px;
+}
+.table-name { font-size: 18px; font-weight: 700; }
+.badge {
+  font-size: 11px; padding: 3px 10px; border-radius: 12px;
+  font-weight: 600; color: #fff;
+}
+.badge-running { background: var(--badge-running); }
+.badge-lobby { background: var(--badge-lobby); }
+.badge-closed { background: var(--badge-closed); }
+
+.table-meta {
+  font-size: 13px; color: var(--text-dim); margin-bottom: 10px;
+  display: flex; gap: 16px;
+}
+.hand-info {
+  background: var(--bg); border-radius: 6px; padding: 10px 14px;
+  margin-bottom: 12px; display: flex; align-items: center; gap: 12px;
+  font-size: 13px;
+}
+.hand-info .label { color: var(--text-dim); }
+.hand-info .stage { font-weight: 600; }
+.board { display: flex; gap: 4px; }
+.card-chip {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 40px; border-radius: 4px;
+  font-size: 14px; font-weight: 700;
+  background: #fff; color: #1a1a2e; border: 1.5px solid #ddd;
+}
+.card-chip.red { color: #dc2626; }
+.pot-info { margin-left: auto; font-weight: 600; }
+
+.players-table {
+  width: 100%; border-collapse: collapse; font-size: 13px;
+}
+.players-table th {
+  text-align: left; padding: 6px 8px; color: var(--text-dim);
+  font-weight: 500; font-size: 12px; border-bottom: 1px solid var(--card-border);
+}
+.players-table td {
+  padding: 6px 8px; border-bottom: 1px solid rgba(42,58,74,0.5);
+}
+.players-table tr.folded { opacity: 0.5; }
+.players-table tr.actor td:first-child::before {
+  content: '● '; color: var(--actor-dot);
+}
+.profit-pos { color: var(--green); font-weight: 600; }
+.profit-neg { color: var(--red); font-weight: 600; }
+.status-icon { font-size: 12px; }
+
+.empty-state {
+  text-align: center; padding: 60px; color: var(--text-dim); font-size: 15px;
+}
+</style>
+</head>
+<body>
+
+<div class="config-bar">
+  <div>
+    <label>API URL</label><br>
+    <input class="url" id="apiUrl" value="https://f0d54a77trial-dev-dpoker-srv.cfapps.ap21.hana.ondemand.com">
+  </div>
+  <div>
+    <label>Player-ID</label><br>
+    <input class="short" id="playerId" value="dashboard">
+  </div>
+  <div>
+    <label>刷新间隔(s)</label><br>
+    <input class="short" id="interval" type="number" value="3" min="1" max="60">
+  </div>
+  <span class="status" id="status">等待连接...</span>
+</div>
+
+<div class="grid" id="grid"></div>
+<div class="empty-state" id="empty" style="display:none">暂无桌子</div>
+
+<script>
+const SUIT_MAP = { h: '♥', d: '♦', c: '♣', s: '♠' };
+const STAGE_MAP = { preflop: '翻前', flop: '翻牌', turn: '转牌', river: '河牌' };
+
+function parseCard(c) {
+  if (!c || c.length < 2) return { rank: '?', suit: '?', red: false };
+  const rank = c.slice(0, -1).toUpperCase();
+  const suitChar = c.slice(-1).toLowerCase();
+  const suit = SUIT_MAP[suitChar] || suitChar;
+  const red = suitChar === 'h' || suitChar === 'd';
+  return { rank, suit, red };
+}
+
+function renderCard(c) {
+  const { rank, suit, red } = parseCard(c);
+  return `<span class="card-chip${red ? ' red' : ''}">${rank}${suit}</span>`;
+}
+
+function renderTable(detail) {
+  const { tableId, status, hand, seats } = detail;
+  const name = detail.name || detail.tableId?.slice(0, 8) || 'Table';
+  const statusClass = status === 'running' ? 'badge-running' : status === 'lobby' ? 'badge-lobby' : 'badge-closed';
+  const statusText = status === 'running' ? '进行中' : status === 'lobby' ? '大厅' : '已关闭';
+  const seatCount = seats.filter(Boolean).length;
+  const maxSeats = detail.maxSeats || seats.length;
+
+  let handHtml = '';
+  if (hand) {
+    const stage = STAGE_MAP[hand.stage] || hand.stage;
+    const board = (hand.board || []).map(renderCard).join('');
+    const pot = (hand.pots || []).reduce((s, p) => s + p.amount, 0);
+    handHtml = `
+      <div class="hand-info">
+        <span class="label">第 ${hand.handNo} 手 · </span>
+        <span class="stage">${stage}</span>
+        <div class="board">${board || '<span style="color:var(--text-dim)">待发牌</span>'}</div>
+        <span class="pot-info">底注 ${pot}</span>
+      </div>`;
+  }
+
+  let playersHtml = '';
+  const activePlayers = seats.filter(Boolean);
+  if (activePlayers.length) {
+    const rows = activePlayers.map(p => {
+      const isActor = hand && hand.actorId === p.playerId;
+      const profitClass = p.profit > 0 ? 'profit-pos' : p.profit < 0 ? 'profit-neg' : '';
+      const profitStr = p.profit > 0 ? `+${p.profit}` : p.profit < 0 ? `${p.profit}` : '0';
+      let statusStr = '✓';
+      if (p.folded) statusStr = '🃏 弃';
+      else if (p.allIn) statusStr = '💰 All-in';
+      const trClass = `${p.folded ? 'folded' : ''} ${isActor ? 'actor' : ''}`;
+      return `<tr class="${trClass}">
+        <td>${p.playerId}</td>
+        <td>${p.stack}</td>
+        <td>${p.bet}</td>
+        <td class="${profitClass}">${profitStr}</td>
+        <td class="status-icon">${statusStr}</td>
+      </tr>`;
+    }).join('');
+    playersHtml = `
+      <table class="players-table">
+        <tr><th>玩家</th><th>筹码</th><th>当前注</th><th>盈亏</th><th>状态</th></tr>
+        ${rows}
+      </table>`;
+  }
+
+  return `
+    <div class="table-card">
+      <div class="table-header">
+        <span class="table-name">${name}</span>
+        <span class="badge ${statusClass}">${statusText}</span>
+      </div>
+      <div class="table-meta">
+        <span>👥 ${seatCount}/${maxSeats}</span>
+        ${hand ? `<span>🃏 第${hand.handNo}手</span>` : ''}
+      </div>
+      ${handHtml}
+      ${playersHtml}
+    </div>`;
+}
+
+let timer = null;
+
+async function refresh() {
+  const base = document.getElementById('apiUrl').value.replace(/\/$/, '');
+  const pid = document.getElementById('playerId').value || 'dashboard';
+  const statusEl = document.getElementById('status');
+  const gridEl = document.getElementById('grid');
+  const emptyEl = document.getElementById('empty');
+
+  try {
+    const headers = { 'X-Player-Id': pid };
+    const res = await fetch(`${base}/api/tables`, { headers });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const tables = await res.json();
+
+    if (!tables.length) {
+      gridEl.innerHTML = '';
+      emptyEl.style.display = 'block';
+      statusEl.textContent = `✓ 已连接 · 0 桌`;
+      statusEl.className = 'status ok';
+      return;
+    }
+    emptyEl.style.display = 'none';
+
+    // Fetch details for each table
+    const details = await Promise.all(tables.map(async t => {
+      try {
+        const r = await fetch(`${base}/api/tables/${t.tableId}`, { headers });
+        if (!r.ok) return { ...t, seats: [], hand: null };
+        const d = await r.json();
+        return { ...d, name: t.name, maxSeats: t.maxSeats };
+      } catch { return { ...t, seats: [], hand: null }; }
+    }));
+
+    gridEl.innerHTML = details.map(renderTable).join('');
+    statusEl.textContent = `✓ 已连接 · ${tables.length} 桌`;
+    statusEl.className = 'status ok';
+  } catch (e) {
+    statusEl.textContent = `✗ ${e.message}`;
+    statusEl.className = 'status err';
+  }
+}
+
+function startPolling() {
+  if (timer) clearInterval(timer);
+  const sec = Math.max(1, parseInt(document.getElementById('interval').value) || 3);
+  refresh();
+  timer = setInterval(refresh, sec * 1000);
+}
+
+document.getElementById('interval').addEventListener('change', startPolling);
+document.getElementById('apiUrl').addEventListener('change', startPolling);
+document.getElementById('playerId').addEventListener('change', startPolling);
+
+startPolling();
+</script>
+</body>
+</html>

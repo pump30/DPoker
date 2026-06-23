@@ -1,4 +1,5 @@
 import express, { type Express } from 'express';
+import cors from 'cors';
 import path from 'node:path';
 import type { DB } from './store/db.js';
 import type { AuthConfig } from './runtime/auth.js';
@@ -21,6 +22,7 @@ export type AppDeps = {
 
 export function createApp(deps: AppDeps): Express {
   const app = express();
+  app.use(cors());
   app.use(express.json());
 
   app.get('/health', (_req, res) => {
