@@ -11,6 +11,10 @@ export class AutoDealer {
   private actionTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private closedTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private emptyTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  /** Track consecutive timeouts per player: Map<tableId, Map<seat, count>> */
+  private timeoutCounts = new Map<string, Map<number, number>>();
+
+  private static readonly MAX_CONSECUTIVE_TIMEOUTS = 3;
 
   constructor(private dispatch: DispatchFn, private removeFn?: RemoveFn) {}
 
@@ -38,6 +42,11 @@ export class AutoDealer {
     if (next.hand?.actorSeat !== null && next.hand?.actorSeat !== undefined) {
       const prevActor = prev?.hand?.actorSeat;
       if (prevActor !== next.hand.actorSeat || !prev?.hand) {
+        // Previous actor acted normally (not timeout) — reset their timeout count
+        if (prevActor !== null && prevActor !== undefined && prev?.hand) {
+          const counts = this.timeoutCounts.get(tableId);
+          if (counts) counts.delete(prevActor);
+        }
         this.scheduleActionTimeout(tableId, next);
       }
     } else {
@@ -96,6 +105,7 @@ export class AutoDealer {
       this.emptyTimers.delete(tableId);
     }
     this.clearActionTimer(tableId);
+    this.timeoutCounts.delete(tableId);
   }
 
   destroy(): void {
@@ -109,6 +119,7 @@ export class AutoDealer {
     this.actionTimers.clear();
     this.closedTimers.clear();
     this.emptyTimers.clear();
+    this.timeoutCounts.clear();
   }
 
   private startGame(tableId: string): void {
@@ -144,11 +155,29 @@ export class AutoDealer {
   private scheduleActionTimeout(tableId: string, state: TableState): void {
     this.clearActionTimer(tableId);
     const timeoutMs = (state.config.actionTimeoutSec ?? 10) * 1000;
+    const actorSeat = state.hand!.actorSeat!;
     this.actionTimers.set(tableId, setTimeout(() => {
       this.actionTimers.delete(tableId);
       try {
         this.dispatch(tableId, { type: 'TIMEOUT', nowMs: Date.now() });
       } catch { /* ignore */ }
+
+      // Track consecutive timeouts and kick idle players
+      const counts = this.timeoutCounts.get(tableId) ?? new Map<number, number>();
+      const prev = counts.get(actorSeat) ?? 0;
+      counts.set(actorSeat, prev + 1);
+      this.timeoutCounts.set(tableId, counts);
+
+      if (prev + 1 >= AutoDealer.MAX_CONSECUTIVE_TIMEOUTS) {
+        // Kick player — stand them up
+        const actor = state.seats[actorSeat];
+        if (actor) {
+          try {
+            this.dispatch(tableId, { type: 'STAND_UP', userId: actor.userId, nowMs: Date.now() });
+          } catch { /* might already be gone */ }
+        }
+        counts.delete(actorSeat);
+      }
     }, timeoutMs));
   }
 

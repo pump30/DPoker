@@ -87,6 +87,23 @@ export function tableRoutes(registry: TableRegistry, waitPool: WaitPool): Router
     }
   });
 
+  // DELETE /api/tables/:id — close table (host only)
+  router.delete('/:id', (req, res) => {
+    const state = registry.get(req.params.id);
+    if (!state) return res.status(404).json({ error: 'table_not_found' });
+    try {
+      const next = registry.dispatch(req.params.id, {
+        type: 'CLOSE_TABLE', hostId: req.userId!, nowMs: Date.now(),
+      });
+      return res.json({ tableId: next.id, status: next.status });
+    } catch (e: any) {
+      if (e.message?.includes('only host')) {
+        return res.status(403).json({ error: 'forbidden', reason: 'only the host can close this table' });
+      }
+      return res.status(400).json({ error: 'invalid_request', reason: e.message });
+    }
+  });
+
   // POST /api/tables/:id/leave
   router.post('/:id/leave', (req, res) => {
     const state = registry.get(req.params.id);
