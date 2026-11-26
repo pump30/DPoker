@@ -134,7 +134,7 @@ export class TableRegistry {
   }
 
   private recordHandStats(_tableId: string, prev: TableState, next: TableState): void {
-    const potTotal = prev.hand!.pots?.reduce((s, p) => s + p.amount, 0) ?? 0;
+    const potTotal = next.lastHandResult?.potTotal ?? 0;
 
     for (const seat of prev.seats) {
       if (!seat) continue;

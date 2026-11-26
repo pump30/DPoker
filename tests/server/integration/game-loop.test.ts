@@ -6,6 +6,10 @@ import { WaitPool } from '@server/game/wait-pool.js';
 import { SnapshotRepo } from '@server/game/snapshot.js';
 import { StatsRepo } from '@server/store/stats.repo.js';
 import { makeTestDb } from '../../helpers/test-db.js';
+import { signToken } from '@server/runtime/auth.js';
+
+const authConfig = { jwtSecret: 'x'.repeat(32), jwtExpiresInSec: 60 };
+const auth = (userId: string) => ({ Authorization: `Bearer ${signToken({ userId }, authConfig)}` });
 
 function makeApp() {
   const db = makeTestDb();
@@ -15,7 +19,7 @@ function makeApp() {
   const registry = new TableRegistry({ snapshotRepo, statsRepo, waitPool });
   const app = createApp({
     db,
-    authConfig: { jwtSecret: 'x'.repeat(32), jwtExpiresInSec: 60 },
+    authConfig,
     registry, statsRepo, waitPool,
   });
   return { app, registry, statsRepo };
@@ -27,8 +31,8 @@ describe('Full game loop integration', () => {
 
   it('two agents play a complete hand', async () => {
     const { app, registry, statsRepo } = makeApp();
-    const alice = { 'X-Player-Id': 'alice' };
-    const bob = { 'X-Player-Id': 'bob' };
+    const alice = auth('alice');
+    const bob = auth('bob');
 
     // Create table
     const createRes = await request(app).post('/api/tables').set(alice)
@@ -49,12 +53,15 @@ describe('Full game loop integration', () => {
     expect(stateRes.body.hand).not.toBeNull();
     expect(stateRes.body.myCards).toBeDefined();
     expect(stateRes.body.myCards).toHaveLength(2);
+    expect(stateRes.body.hand.pots.reduce((sum: number, pot: { amount: number }) => sum + pot.amount, 0)).toBe(15);
+    expect(new Set(stateRes.body.hand.pots[0].eligibleIds)).toEqual(new Set(['alice', 'bob']));
+    expect(stateRes.body.validActions.length).toBeGreaterThan(0);
 
     // Find whose turn it is and fold
     const state = registry.get(tableId)!;
     const actorSeat = state.hand!.actorSeat!;
     const actorId = state.seats[actorSeat]!.userId;
-    const actorHeader = { 'X-Player-Id': actorId };
+    const actorHeader = auth(actorId);
 
     const foldRes = await request(app).post(`/api/tables/${tableId}/act`).set(actorHeader)
       .send({ type: 'fold' });
@@ -64,6 +71,13 @@ describe('Full game loop integration', () => {
     const afterFold = registry.get(tableId)!;
     expect(afterFold.hand).toBeNull();
 
+    const resultRes = await request(app).get(`/api/tables/${tableId}`).set(alice);
+    expect(resultRes.body.lastHandResult).toMatchObject({
+      handNo: 1,
+      potTotal: 15,
+      winners: [{ handName: 'Won by fold' }],
+    });
+
     // Stats should be recorded
     const stats = statsRepo.getAll();
     expect(stats.length).toBe(2);
@@ -72,8 +86,8 @@ describe('Full game loop integration', () => {
 
   it('action timeout triggers auto-fold', async () => {
     const { app, registry } = makeApp();
-    const alice = { 'X-Player-Id': 'alice' };
-    const bob = { 'X-Player-Id': 'bob' };
+    const alice = auth('alice');
+    const bob = auth('bob');
 
     const createRes = await request(app).post('/api/tables').set(alice)
       .send({ name: 'T', smallBlind: 5, bigBlind: 10, minBuyIn: 100, maxBuyIn: 1000, maxSeats: 2, actionTimeoutSec: 10 });
@@ -96,8 +110,8 @@ describe('Full game loop integration', () => {
 
   it('busted player gets auto-rebuy', async () => {
     const { app, registry } = makeApp();
-    const alice = { 'X-Player-Id': 'alice' };
-    const bob = { 'X-Player-Id': 'bob' };
+    const alice = auth('alice');
+    const bob = auth('bob');
 
     const createRes = await request(app).post('/api/tables').set(alice)
       .send({ name: 'T', smallBlind: 5, bigBlind: 10, minBuyIn: 100, maxBuyIn: 1000, maxSeats: 2, actionTimeoutSec: 10 });
@@ -120,8 +134,8 @@ describe('Full game loop integration', () => {
 
   it('next hand auto-deals after previous hand ends', async () => {
     const { app, registry } = makeApp();
-    const alice = { 'X-Player-Id': 'alice' };
-    const bob = { 'X-Player-Id': 'bob' };
+    const alice = auth('alice');
+    const bob = auth('bob');
 
     const createRes = await request(app).post('/api/tables').set(alice)
       .send({ name: 'AutoDeal', smallBlind: 5, bigBlind: 10, minBuyIn: 100, maxBuyIn: 1000, maxSeats: 2, actionTimeoutSec: 10 });
@@ -139,7 +153,7 @@ describe('Full game loop integration', () => {
     // Fold to end the hand
     const actorSeat = state1.hand!.actorSeat!;
     const actorId = state1.seats[actorSeat]!.userId;
-    await request(app).post(`/api/tables/${tableId}/act`).set({ 'X-Player-Id': actorId })
+    await request(app).post(`/api/tables/${tableId}/act`).set(auth(actorId))
       .send({ type: 'fold' });
 
     // Hand ended

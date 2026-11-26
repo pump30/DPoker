@@ -57,7 +57,7 @@ import {
   type SquidRoundState,
 } from './squid-round.js';
 import { applyHand as applyHandStats, initStats, type HandSummary } from './squid-stats.js';
-import type { PlayerCards } from './hand-evaluator.js';
+import { evaluateHand, type PlayerCards } from './hand-evaluator.js';
 
 // ===== Events =====
 
@@ -115,6 +115,7 @@ function createTable(event: Extract<TableEvent, { type: 'CREATE_TABLE' }>): Tabl
     squidStats: new Map(),
     eventSeq: 1,
     revealedSeeds: [],
+    lastHandResult: null,
     createdAt: event.nowMs,
     closedAt: null,
   };
@@ -708,6 +709,15 @@ function finalizeHand(
       serverSeed: (state as any)._serverSeed as string,
     },
   ];
+  const resultBoard = boards[0] ?? state.hand!.board;
+  const holeCards = (state as any)._holeCards as Map<string, [Card, Card]> | undefined;
+  const winners = winnerIds.map((playerId) => {
+    const hole = holeCards?.get(playerId);
+    const handName = showdownReached && hole && resultBoard.length === 5
+      ? evaluateHand(hole, resultBoard).description
+      : 'Won by fold';
+    return { playerId, handName };
+  });
 
   // Stash sbSeat / bbSeat for next button rotation
   const out: TableState = {
@@ -719,12 +729,18 @@ function finalizeHand(
     squid: squidPanel,
     squidStats,
     revealedSeeds,
+    lastHandResult: {
+      handNo: state.hand!.handNo,
+      board: resultBoard,
+      potTotal,
+      winners,
+      completedAtMs: nowMs,
+    },
   };
   (out as any)._prevButton = state.hand!.buttonSeat;
   (out as any)._prevSb = (state as any)._sbSeat;
   (out as any)._prevBb = (state as any)._bbSeat;
   void boards;
-  void nowMs;
   return out;
 }
 

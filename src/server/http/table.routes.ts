@@ -1,11 +1,13 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { openAuth } from './middleware.js';
+import { requireAuth } from './middleware.js';
+import type { AuthConfig } from '../runtime/auth.js';
 import { getHoleCards } from '../game/table-state.js';
 import type { TableRegistry } from '../game/table-registry.js';
 import type { WaitPool } from '../game/wait-pool.js';
 import type { TableState } from '../../shared/table-types.js';
 import type { Action } from '../../shared/game-types.js';
+import { splitIntoPots, type Contribution } from '../game/pot.js';
 
 const CreateTableSchema = z.object({
   name: z.string().min(1).max(64),
@@ -27,9 +29,10 @@ const ActionSchema = z.object({
   amount: z.number().int().positive().optional(),
 });
 
-export function tableRoutes(registry: TableRegistry, waitPool: WaitPool): Router {
+export function tableRoutes(registry: TableRegistry, waitPool: WaitPool, authConfig: AuthConfig): Router {
   const router = Router();
-  router.use(openAuth());
+  // Browser and programmatic clients use the same signed identity boundary.
+  router.use(requireAuth(authConfig));
 
   // POST /api/tables — create
   router.post('/', (req, res) => {
@@ -87,14 +90,13 @@ export function tableRoutes(registry: TableRegistry, waitPool: WaitPool): Router
     }
   });
 
-  // DELETE /api/tables/:id — close table (host only, or force=true to skip check)
+  // DELETE /api/tables/:id — close table (host only)
   router.delete('/:id', (req, res) => {
     const state = registry.get(req.params.id);
     if (!state) return res.status(404).json({ error: 'table_not_found' });
-    const hostId = req.query.force === 'true' ? state.hostId : req.userId!;
     try {
       const next = registry.dispatch(req.params.id, {
-        type: 'CLOSE_TABLE', hostId, nowMs: Date.now(),
+        type: 'CLOSE_TABLE', hostId: req.userId!, nowMs: Date.now(),
       });
       return res.json({ tableId: next.id, status: next.status });
     } catch (e: any) {
@@ -206,15 +208,26 @@ function formatTableResponse(state: TableState, playerId: string, registry: Tabl
   const myCards = getHoleCards(state, playerId);
   const mySeat = state.seats.find(s => s?.userId === playerId);
   const myBoughtIn = buyInTracker?.get(playerId) ?? mySeat?.stack ?? 0;
+  const livePots = currentPots(state);
 
   return {
     tableId: state.id,
+    name: state.config.name,
+    shortCode: state.shortCode,
+    hostId: state.hostId,
+    config: {
+      smallBlind: state.config.smallBlind,
+      bigBlind: state.config.bigBlind,
+      minBuyIn: state.config.minBuyIn,
+      maxBuyIn: state.config.maxBuyIn,
+      maxSeats: state.config.maxSeats,
+    },
     status: state.status,
     hand: state.hand ? {
       handNo: state.hand.handNo,
       stage: state.hand.stage,
       board: state.hand.board,
-      pots: state.hand.pots,
+      pots: livePots,
       currentBet: state.hand.currentBet,
       minRaise: state.hand.minRaise,
       actorId: state.hand.actorSeat !== null ? state.seats[state.hand.actorSeat]?.userId ?? null : null,
@@ -235,12 +248,32 @@ function formatTableResponse(state: TableState, playerId: string, registry: Tabl
     }),
     myCards: myCards ?? undefined,
     myProfit: mySeat ? mySeat.stack - myBoughtIn : undefined,
+    validActions: validActionsFor(state, playerId),
+    lastHandResult: state.lastHandResult ?? null,
   };
 }
 
+function currentPots(state: TableState) {
+  const merged = new Map<string, Contribution>();
+  const collected = (((state as any)._contribs ?? []) as Contribution[]);
+  for (const contribution of collected) merged.set(contribution.id, { ...contribution });
+  for (const seat of state.seats) {
+    if (!seat || seat.bet <= 0) continue;
+    const existing = merged.get(seat.userId);
+    merged.set(seat.userId, {
+      id: seat.userId,
+      amount: (existing?.amount ?? 0) + seat.bet,
+      folded: seat.folded || (existing?.folded ?? false),
+    });
+  }
+  return splitIntoPots([...merged.values()]);
+}
+
 function formatActResponse(state: TableState, playerId: string, registry: TableRegistry): any {
-  const base = formatTableResponse(state, playerId, registry);
-  // Add validActions
+  return formatTableResponse(state, playerId, registry);
+}
+
+function validActionsFor(state: TableState, playerId: string): string[] {
   const validActions: string[] = [];
   if (state.hand && state.hand.actorSeat !== null) {
     const actor = state.seats[state.hand.actorSeat];
@@ -258,5 +291,5 @@ function formatActResponse(state: TableState, playerId: string, registry: TableR
       if (actor.stack > 0) validActions.push('all-in');
     }
   }
-  return { ...base, validActions };
+  return validActions;
 }

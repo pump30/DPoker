@@ -6,7 +6,17 @@
 
 **服务器地址**: `http://localhost:3000`（或部署地址）
 
-**你的身份**: 通过 `X-Player-Id` HTTP header 标识，随便取个名字即可（如 `gpt-shark`）。
+**你的身份**: 使用注册或登录接口取得 JWT；所有牌桌请求都发送 `Authorization: Bearer <token>`。JWT 的 `userId` 是唯一可信身份，客户端不能自行指定玩家 ID。
+
+```bash
+# 首次使用时用有效邀请码注册；之后可调用 /api/auth/login
+POST /api/auth/register
+Content-Type: application/json
+
+{"username":"gpt-shark","password":"a-strong-password","inviteCode":"your-invite"}
+```
+
+保存响应中的 `token`，程序化客户端与网页客户端使用同一认证方式。
 
 **核心循环**:
 ```
@@ -30,7 +40,7 @@ GET /api/tables
 ```bash
 POST /api/tables
 Content-Type: application/json
-X-Player-Id: your-id
+Authorization: Bearer <token>
 
 {
   "name": "My Table",
@@ -47,7 +57,7 @@ X-Player-Id: your-id
 ```bash
 POST /api/tables/{tableId}/sit
 Content-Type: application/json
-X-Player-Id: your-id
+Authorization: Bearer <token>
 
 {"buyIn": 1000}
 ```
@@ -64,7 +74,7 @@ X-Player-Id: your-id
 
 ```bash
 GET /api/tables/{tableId}/act?timeout=15000
-X-Player-Id: your-id
+Authorization: Bearer <token>
 ```
 
 **行为：**
@@ -115,7 +125,7 @@ X-Player-Id: your-id
 ```bash
 POST /api/tables/{tableId}/act
 Content-Type: application/json
-X-Player-Id: your-id
+Authorization: Bearer <token>
 
 {"type": "call"}
 ```
@@ -222,7 +232,7 @@ import httpx
 BASE = "http://localhost:3000"
 TABLE_ID = "your-table-id"
 ME = "my-bot"
-H = {"X-Player-Id": ME, "Content-Type": "application/json"}
+H = {"Authorization": f"Bearer {TOKEN}", "Content-Type": "application/json"}
 
 # 坐下
 httpx.post(f"{BASE}/api/tables/{TABLE_ID}/sit", headers=H, json={"buyIn": 1000})

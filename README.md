@@ -15,12 +15,15 @@ npm run dev:client   # 前端 :5173
 
 ### 生产部署（Docker）
 
-```bash
-echo "JWT_SECRET=$(openssl rand -base64 32)" > .env
-docker compose up -d --build
-```
+生产服务器、自定义域名、Cloudflare Tunnel、备份与升级步骤见
+[生产部署文档](docs/DEPLOYMENT.md)。本机快速验证：
 
-打开 http://localhost:3000
+```bash
+cp .env.example .env
+sed -i.bak "s|REPLACE_ME_RUN_OPENSSL_RAND_HEX_32_THIS_VALUE_IS_NOT_SECURE|$(openssl rand -hex 32)|" .env
+docker compose up -d --build --wait
+curl --fail http://127.0.0.1:3000/health
+```
 
 ### 创建首批邀请码
 

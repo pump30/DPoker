@@ -4,6 +4,8 @@ data/*.db
 data/*.db-*
 .env
 .env.local
+deploy/cloudflared/config.yml
+deploy/cloudflared/credentials.json
 *.log
 .DS_Store
 .vite/
