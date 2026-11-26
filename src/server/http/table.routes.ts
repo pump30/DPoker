@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { openAuth } from './middleware.js';
+import { openAuth, requireAuth } from './middleware.js';
+import type { AuthConfig } from '../runtime/auth.js';
 import { getHoleCards } from '../game/table-state.js';
 import type { TableRegistry } from '../game/table-registry.js';
 import type { WaitPool } from '../game/wait-pool.js';
@@ -27,9 +28,15 @@ const ActionSchema = z.object({
   amount: z.number().int().positive().optional(),
 });
 
-export function tableRoutes(registry: TableRegistry, waitPool: WaitPool): Router {
+export function tableRoutes(registry: TableRegistry, waitPool: WaitPool, authConfig?: AuthConfig): Router {
   const router = Router();
-  router.use(openAuth());
+  // The web app uses its login JWT. Keep header-based auth available when the
+  // router is mounted standalone for agent clients and backwards compatibility.
+  const agentAuth = openAuth();
+  const webAuth = authConfig ? requireAuth(authConfig) : null;
+  router.use((req, res, next) =>
+    webAuth && req.headers.authorization ? webAuth(req, res, next) : agentAuth(req, res, next),
+  );
 
   // POST /api/tables — create
   router.post('/', (req, res) => {
@@ -209,6 +216,16 @@ function formatTableResponse(state: TableState, playerId: string, registry: Tabl
 
   return {
     tableId: state.id,
+    name: state.config.name,
+    shortCode: state.shortCode,
+    hostId: state.hostId,
+    config: {
+      smallBlind: state.config.smallBlind,
+      bigBlind: state.config.bigBlind,
+      minBuyIn: state.config.minBuyIn,
+      maxBuyIn: state.config.maxBuyIn,
+      maxSeats: state.config.maxSeats,
+    },
     status: state.status,
     hand: state.hand ? {
       handNo: state.hand.handNo,

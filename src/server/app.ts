@@ -33,7 +33,7 @@ export function createApp(deps: AppDeps): Express {
   app.use('/api/invites', inviteRoutes(deps.db, deps.authConfig));
 
   if (deps.registry && deps.waitPool) {
-    app.use('/api/tables', tableRoutes(deps.registry, deps.waitPool));
+    app.use('/api/tables', tableRoutes(deps.registry, deps.waitPool, deps.authConfig));
   }
   if (deps.statsRepo) {
     app.use('/api/stats', statsRoutes(deps.statsRepo));

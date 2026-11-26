@@ -35,53 +35,46 @@ export function Login() {
   }
 
   return (
-    <div style={{ maxWidth: 360, margin: '64px auto', fontFamily: 'system-ui' }}>
-      <h1>DPoker</h1>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-        <button onClick={() => setTab('login')} disabled={tab === 'login'}>
-          Login
-        </button>
-        <button onClick={() => setTab('register')} disabled={tab === 'register'}>
-          Register
-        </button>
-      </div>
-      <form onSubmit={onSubmit} style={{ display: 'grid', gap: 8 }}>
+    <main className="login-screen"><section className="login-art"><div className="brand large"><span>♦</span> DPoker</div><div><p className="eyebrow">PRIVATE TABLES. REAL POKER.</p><h1>The felt is<br/><em>waiting.</em></h1><p>Gather your people. Read the room. Play the hand.</p></div><div className="card-fan"><i>♠</i><i>♥</i><i>♦</i></div></section><section className="login-panel"><div className="login-form"><p className="eyebrow">WELCOME TO THE TABLE</p><h2>{tab === 'login' ? 'Sign in to play' : 'Claim your seat'}</h2><div className="tabs"><button className={tab === 'login' ? 'active' : ''} onClick={() => { setTab('login'); setError(null); }}>Sign in</button><button className={tab === 'register' ? 'active' : ''} onClick={() => { setTab('register'); setError(null); }}>Register</button></div>
+      <form onSubmit={onSubmit}>
+        <label>Username
         <input
-          placeholder="Username"
+          placeholder="your username"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
           required
-        />
+        /></label>
+        <label>Password
         <input
           type="password"
-          placeholder="Password (min 8 chars)"
+          placeholder={tab === 'register' ? 'at least 8 characters' : 'your password'}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
           minLength={tab === 'register' ? 8 : 1}
-        />
+        /></label>
         {tab === 'register' && (
           <>
-            <input
+            <label>Display name<input
               placeholder="Display name"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
               required
-            />
-            <input
+            /></label>
+            <label>Invite code<input
               placeholder="Invite code"
               value={inviteCode}
               onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
               required
-            />
+            /></label>
           </>
         )}
-        <button type="submit" disabled={busy}>
-          {busy ? '...' : tab === 'login' ? 'Login' : 'Register'}
+        {error && <div className="notice error" role="alert">{error}</div>}
+        <button className="primary wide" type="submit" disabled={busy}>
+          {busy ? 'Checking your seat…' : tab === 'login' ? 'Enter the card room' : 'Create account'}
         </button>
-        {error && <p style={{ color: 'crimson' }}>{error}</p>}
       </form>
-    </div>
+      </div></section></main>
   );
 }
 
