@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { openAuth, requireAuth } from './middleware.js';
+import { requireAuth } from './middleware.js';
 import type { AuthConfig } from '../runtime/auth.js';
 import { getHoleCards } from '../game/table-state.js';
 import type { TableRegistry } from '../game/table-registry.js';
@@ -28,15 +28,10 @@ const ActionSchema = z.object({
   amount: z.number().int().positive().optional(),
 });
 
-export function tableRoutes(registry: TableRegistry, waitPool: WaitPool, authConfig?: AuthConfig): Router {
+export function tableRoutes(registry: TableRegistry, waitPool: WaitPool, authConfig: AuthConfig): Router {
   const router = Router();
-  // The web app uses its login JWT. Keep header-based auth available when the
-  // router is mounted standalone for agent clients and backwards compatibility.
-  const agentAuth = openAuth();
-  const webAuth = authConfig ? requireAuth(authConfig) : null;
-  router.use((req, res, next) =>
-    webAuth && req.headers.authorization ? webAuth(req, res, next) : agentAuth(req, res, next),
-  );
+  // Browser and programmatic clients use the same signed identity boundary.
+  router.use(requireAuth(authConfig));
 
   // POST /api/tables — create
   router.post('/', (req, res) => {
@@ -94,14 +89,13 @@ export function tableRoutes(registry: TableRegistry, waitPool: WaitPool, authCon
     }
   });
 
-  // DELETE /api/tables/:id — close table (host only, or force=true to skip check)
+  // DELETE /api/tables/:id — close table (host only)
   router.delete('/:id', (req, res) => {
     const state = registry.get(req.params.id);
     if (!state) return res.status(404).json({ error: 'table_not_found' });
-    const hostId = req.query.force === 'true' ? state.hostId : req.userId!;
     try {
       const next = registry.dispatch(req.params.id, {
-        type: 'CLOSE_TABLE', hostId, nowMs: Date.now(),
+        type: 'CLOSE_TABLE', hostId: req.userId!, nowMs: Date.now(),
       });
       return res.json({ tableId: next.id, status: next.status });
     } catch (e: any) {
