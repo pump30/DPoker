@@ -53,6 +53,9 @@ describe('Full game loop integration', () => {
     expect(stateRes.body.hand).not.toBeNull();
     expect(stateRes.body.myCards).toBeDefined();
     expect(stateRes.body.myCards).toHaveLength(2);
+    expect(stateRes.body.hand.pots.reduce((sum: number, pot: { amount: number }) => sum + pot.amount, 0)).toBe(15);
+    expect(new Set(stateRes.body.hand.pots[0].eligibleIds)).toEqual(new Set(['alice', 'bob']));
+    expect(stateRes.body.validActions.length).toBeGreaterThan(0);
 
     // Find whose turn it is and fold
     const state = registry.get(tableId)!;
@@ -67,6 +70,13 @@ describe('Full game loop integration', () => {
     // Hand should be over (fold in heads-up = hand ends)
     const afterFold = registry.get(tableId)!;
     expect(afterFold.hand).toBeNull();
+
+    const resultRes = await request(app).get(`/api/tables/${tableId}`).set(alice);
+    expect(resultRes.body.lastHandResult).toMatchObject({
+      handNo: 1,
+      potTotal: 15,
+      winners: [{ handName: 'Won by fold' }],
+    });
 
     // Stats should be recorded
     const stats = statsRepo.getAll();

@@ -45,12 +45,16 @@ export function TablePage() {
   async function leave() { if (!token) return; setBusy(true); try { setTable(await api.leave(token, tableId)); } catch (e) { setError(e instanceof ApiError ? friendly(e.code) : 'Could not leave the table.'); } finally { setBusy(false); } }
 
   const pot = useMemo(() => table?.hand?.pots.reduce((sum, p) => sum + p.amount, 0) ?? table?.seats.reduce((sum, s) => sum + (s?.bet ?? 0), 0) ?? 0, [table]);
+  const recentResult = table?.lastHandResult && Date.now() - table.lastHandResult.completedAtMs < 8000
+    ? table.lastHandResult
+    : null;
   if (loading) return <div className="full-loader"><span className="spinner" />Preparing the felt…</div>;
   if (!table) return <div className="full-loader"><strong>Table unavailable</strong><Link to="/">Return to lobby</Link></div>;
   const seconds = table.hand?.actionDeadlineMs ? Math.max(0, Math.ceil((table.hand.actionDeadlineMs - Date.now()) / 1000)) : null;
   return <main className="table-screen">
     <header className="table-topbar"><Link className="brand" to="/"><span>♦</span> DPoker</Link><div className="table-meta"><strong>{table.name}</strong><span>Blinds {table.config.smallBlind}/{table.config.bigBlind}</span><span>#{table.shortCode}</span></div><Link className="secondary compact" to="/">← Lobby</Link></header>
     {error && <div className="floating-notice" role="alert">{error}<button onClick={() => setError('')}>×</button></div>}
+    {recentResult && <div className="hand-result" role="status"><strong>{recentResult.winners.map(w => w.playerId === user?.id ? 'You' : w.playerId.slice(0, 10)).join(' & ')} won POT {recentResult.potTotal}</strong><span>{recentResult.winners.map(w => w.handName).join(' · ')}</span></div>}
     <section className="poker-room"><div className="felt"><div className="felt-line" />
       <div className="pot-display"><span>{table.hand ? `${table.hand.stage.toUpperCase()} · HAND ${table.hand.handNo}` : table.status === 'lobby' ? 'WAITING FOR PLAYERS' : table.status.toUpperCase()}</span><strong>POT {pot}</strong></div>
       <div className="board">{table.hand ? Array.from({length:5},(_,i)=><Card key={i} value={table.hand?.board[i]} hidden={!table.hand?.board[i]} />) : <p>Take a seat. The game starts automatically with two players.</p>}</div>

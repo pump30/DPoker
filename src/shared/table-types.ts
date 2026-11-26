@@ -97,6 +97,13 @@ export type TableState = {
 
   // Audit log of revealed seeds (after showdown). One entry per completed hand.
   revealedSeeds: Array<{ handNo: number; commitHash: string; serverSeed: string }>;
+  lastHandResult: null | {
+    handNo: number;
+    board: Card[];
+    potTotal: number;
+    winners: Array<{ playerId: string; handName: string }>;
+    completedAtMs: number;
+  };
 
   createdAt: number;
   closedAt: number | null;

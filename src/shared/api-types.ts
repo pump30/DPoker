@@ -67,4 +67,11 @@ export type TableResponse = {
   myCards?: string[];
   myProfit?: number;
   validActions?: Array<'fold' | 'check' | 'call' | 'raise' | 'all-in'>;
+  lastHandResult: null | {
+    handNo: number;
+    board: string[];
+    potTotal: number;
+    winners: Array<{ playerId: string; handName: string }>;
+    completedAtMs: number;
+  };
 };
