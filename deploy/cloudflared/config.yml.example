@@ -1,0 +1,8 @@
+# Copy to config.yml on the server and replace both placeholders.
+tunnel: <TUNNEL_UUID>
+credentials-file: /etc/cloudflared/credentials.json
+
+ingress:
+  - hostname: <YOUR_DPOKER_DOMAIN>
+    service: http://dpoker:3000
+  - service: http_status:404
